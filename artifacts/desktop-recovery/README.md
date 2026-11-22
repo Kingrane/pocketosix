@@ -142,3 +142,35 @@ npx tsx scripts/check-desktop-recovery.ts --controls --storage
 полного прогона; его копия и проверенная сборка сохранены в `verify-current`.
 Чтобы повторить mock E2E, выполните там
 `npx playwright test --config playwright.recovery.config.ts` против порта 3002.
+
+## Дополнительная диагностика после `a8231e5`
+
+- `18-32-01-406Z`, настоящий isolated Chrome/CheerpX, `--storage`: первый кадр
+  65 153 мс; shell / Python / чтение i3 config — exit 0. Lock второй вкладки
+  и committed marker подтверждены. После reload discovery увидел два сокета:
+  первый прошёл `get_version` / `get_tree`, второй остановился на `get_version`;
+  console сообщил `Unexpected exit ... Program exited with code 71`.
+  Ожидание 150 секунд истекло, exit 1. Reopen файла и reset не достигнуты.
+- Добавлены реальные этапы probe в логи и неблокирующий AF_UNIX connect preflight:
+  ошибочное / незавершённое подключение пропускается до `i3-msg`. Это защита от
+  старых сокетов, а не очистка `/tmp` или изменение диска. Корректные version/tree
+  и единственная отвечающая сессия по-прежнему обязательны. Реальная проверка
+  устранения reload-сбоя новым вариантом на момент этого коммита ещё выполняется.
+- Диагностический скрипт теперь ждёт окончания controller-команд перед прямым
+  `vm.run` и без `--controls`. `--diagnose-close` читает XTerm version, проверяет
+  исполнение shell после отказа закрытия и существование её process group через
+  signal **0**, затем отдельно вводит `exit` только в disposable тестовом XTerm.
+  Ошибка штатного закрытия сохраняет exit 1; production fallback / forced kill нет.
+- Read-only исследование upstream старого XTerm показало, что `WM_DELETE` ждёт
+  завершения shell после группового SIGHUP. Это возможное объяснение отказа,
+  не доказанный сбой сигналов CheerpX и не исправление закрытия.
+- `npm run typecheck`, `npm run lint`, `git diff --check` — успешно;
+  `npm test` — **66/66**. `npm run build` — успешно в `verify-current`.
+  Локальная Python-модель нового probe — 6/6 сценариев, включая dead-before-live,
+  dead-after-live, incomplete connect и неоднозначность. Это модель протокола,
+  не реальный Linux. Mock E2E после connect preflight пока не повторялся.
+- Новый настоящий прогон `--controls --storage --diagnose-close` выполняется
+  только на localhost:3002 в новом browser context. До его завершения нельзя
+  заявлять успех reload/reset или исправление XTerm. Публикация текущего кода
+  не означает, что все проверки Linux прошли. Localhost:3000, личная вкладка,
+  SDK/base/overlay ID и пользовательский диск не изменялись в этой итерации.

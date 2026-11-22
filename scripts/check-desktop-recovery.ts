@@ -69,11 +69,13 @@ async function main() {
     await page.waitForFunction(() => document.querySelector(".app-shell")?.getAttribute("data-vm-phase") === "ready", {}, { timeout: 240000 });
     measurements.push({ operation: "boot-frame", milliseconds: Date.now() - started });
     await page.screenshot({ path: `${directory}/boot.png` });
+    // Default discovery starts after the frame, even without --controls.
+    // Never race diagnostic vm.run calls against the controller's finite command.
+    await page.waitForFunction(() => {
+      const owner = (window as RecoveryWindow).__pocketRecoveryOwner;
+      return !owner.guestTask && !owner.guestRun;
+    }, {}, { timeout: 150000 });
     if (controls) {
-      await page.waitForFunction(() => {
-        const owner = (window as RecoveryWindow).__pocketRecoveryOwner;
-        return !owner.guestTask && !owner.guestRun;
-      }, {}, { timeout: 150000 });
       const guest = await page.evaluate(() => (window as RecoveryWindow).__pocketRecoveryOwner.getSnapshot().guestDesktop);
       measurements.push({ operation: "default-floating", guest });
       if (guest.floating !== "on" || guest.phase !== "ready") throw new Error("Default floating not confirmed by actual i3");
@@ -89,6 +91,11 @@ async function main() {
       const result = await Promise.race([task, new Promise(resolve => { timer = setTimeout(() => resolve({ timeout: true }), 90000); })]).finally(() => clearTimeout(timer));
       measurements.push({ operation: command.name, milliseconds: Date.now() - started, result });
       if ((result as { timeout?: boolean }).timeout || (result as { status?: number }).status !== 0) throw new Error(`Diagnostic failed: ${command.name}`);
+    }
+    if (diagnoseClose) {
+      const result = await bounded(page.evaluate(() => (window as RecoveryWindow).__pocketRecoveryOwner.vm.run("/usr/bin/xterm", ["-version"], { uid: 0, gid: 0, cwd: "/" })));
+      measurements.push({ operation: "xterm-version", result });
+      if (result.status !== 0) throw new Error("XTerm version unavailable");
     }
     if (controls) {
       let started = Date.now();
@@ -201,6 +208,48 @@ async function main() {
           }, terminal));
           const nativeWindows = await page.evaluate(() => (window as RecoveryWindow).__pocketRecoveryOwner.getSnapshot().guestDesktop.windows);
           measurements.push({ operation: "native-close-diagnostic", windows: nativeWindows, closed: !nativeWindows.some(window => window.windowId === terminal.windowId && window.containerId === terminal.containerId) });
+          if (nativeWindows.some(window => window.windowId === terminal.windowId && window.containerId === terminal.containerId)) {
+            // This isolated shell remains the only window. Record its real PID
+            // and HUP traps, then test group existence WITHOUT sending a signal.
+            await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+            await expect(page.locator("body > textarea[data-pocketosix-kms-input]")).toBeFocused();
+            await page.keyboard.type("printf '%s\\n' $$ > /tmp/pocketosix-close-shell; trap > /tmp/pocketosix-close-traps", { delay: 100 });
+            await page.keyboard.press("Enter", { delay: 100 });
+            const diagnostic = await bounded(page.evaluate(() => {
+              const owner = (window as RecoveryWindow).__pocketRecoveryOwner;
+              return owner.vm.run("/usr/bin/python3", ["-B", "-c", [
+                "import os, time",
+                "for attempt in range(20):",
+                "    if os.path.isfile('/tmp/pocketosix-close-traps'): break",
+                "    time.sleep(0.5)",
+                "pid = int(open('/tmp/pocketosix-close-shell').read())",
+                "print('[recovery:close-shell]', pid, flush=True)",
+                "print('[recovery:close-traps]', open('/tmp/pocketosix-close-traps').read(), flush=True)",
+                "try:",
+                "    pgid = os.getpgid(pid)",
+                "    os.killpg(pgid, 0)",
+                "    print('[recovery:close-group-exists]', pgid, flush=True)",
+                "except OSError as error:",
+                "    print('[recovery:close-group-errno]', error.errno, flush=True)",
+              ].join("\n")], { uid: owner.guestSession.uid, gid: owner.guestSession.gid, cwd: "/" });
+            }));
+            measurements.push({ operation: "shell-after-close", result: diagnostic });
+            if (diagnostic.status !== 0) throw new Error("Shell after close not confirmed");
+            // Explicit exit in this disposable terminal, not production fallback.
+            await canvas.click({ position: { x: box.width / 2, y: box.height / 2 } });
+            await page.keyboard.type("exit", { delay: 100 });
+            await page.keyboard.press("Enter", { delay: 100 });
+            await bounded(page.evaluate(async target => {
+              const owner = (window as RecoveryWindow).__pocketRecoveryOwner;
+              for (let attempt = 0; attempt < 10; attempt++) {
+                await owner.inspectGuestDesktop();
+                if (!owner.getSnapshot().guestDesktop.windows.some(window => window.windowId === target.windowId && window.containerId === target.containerId)) return;
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            }, terminal));
+            const windowsAfterExit = await page.evaluate(() => (window as RecoveryWindow).__pocketRecoveryOwner.getSnapshot().guestDesktop.windows);
+            measurements.push({ operation: "explicit-shell-exit", closed: !windowsAfterExit.some(window => window.windowId === terminal.windowId && window.containerId === terminal.containerId) });
+          }
         }
       }
       const stopped = await bounded(page.evaluate(() => (window as RecoveryWindow).__pocketRecoveryOwner.toggleGuestFloating()));

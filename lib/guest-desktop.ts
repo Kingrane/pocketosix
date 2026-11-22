@@ -49,7 +49,8 @@ request_id = ""
 try:
     import sys
     request_id = sys.argv[1]
-    import glob, json, os, pwd, stat, subprocess
+    print("[pocketosix-probe] imports", flush=True)
+    import glob, json, os, pwd, socket, stat, subprocess
 
     def executable(path):
         return os.path.isfile(path) and os.access(path, os.X_OK)
@@ -57,15 +58,27 @@ try:
     if not all(executable(path) for path in ("/usr/bin/python3", "/usr/bin/i3-msg")):
         raise RuntimeError()
     paths = set(glob.glob("/tmp/i3-*/ipc-socket.*") + glob.glob("/run/user/*/i3/ipc-socket.*"))
+    print("[pocketosix-probe] sockets=" + str(len(paths)), flush=True)
     live = {}
     for path in sorted(paths):
         try:
             info = os.stat(path)
             if not stat.S_ISSOCK(info.st_mode) or info.st_uid <= 0:
                 continue
+            # /tmp survives with the writable root; a previous i3 can leave a
+            # dead socket. Do not invoke i3-msg's fatal connect-error path there.
+            # AF_UNIX connects locally and immediately; incomplete/error results
+            # are rejected, never waited on or mistaken for a live session.
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.setblocking(False)
+                connected = connection.connect_ex(path)
+            print("[pocketosix-probe] connect=" + str(connected), flush=True)
+            if connected != 0:
+                continue
             owner = pwd.getpwuid(info.st_uid)
             replies = []
             for query in ("get_version", "get_tree"):
+                print("[pocketosix-probe] " + query, flush=True)
                 result = subprocess.run(["/usr/bin/i3-msg", "-s", path, "-t", query],
                                         stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                         text=True, check=True, timeout=5)
@@ -81,6 +94,7 @@ try:
     if len(live) != 1:
         raise RuntimeError()
     path, owner = next(iter(live.values()))
+    print("[pocketosix-probe] apps", flush=True)
     apps = [app for app, binary in (
         ("launcher", "/usr/bin/rofi"), ("terminal", "/usr/bin/xterm"),
         ("files", "/usr/bin/thunar"), ("lightweight-files", "/usr/bin/pcmanfm"),

@@ -211,6 +211,17 @@ test("probe nonce is positional data for Python and its fixed protocol error for
   assert.match(command.args[3], /"requestId":"%s".*% request_id/);
 });
 
+test("discovery rejects stale or incomplete UNIX socket connections before invoking i3-msg", () => {
+  const script = guestProbeCommand("unit-request_123").args[3];
+  assert.match(script, /with socket\.socket\(socket\.AF_UNIX, socket\.SOCK_STREAM\) as connection:\s+connection\.setblocking\(False\)\s+connected = connection\.connect_ex\(path\)/);
+  assert.match(script, /if connected != 0:\s+continue/);
+  const preflight = script.indexOf("connection.connect_ex(path)");
+  assert.ok(script.indexOf("info.st_uid <= 0") < preflight);
+  assert.ok(preflight < script.indexOf('subprocess.run(["/usr/bin/i3-msg"'));
+  assert.match(script, /if len\(live\) != 1:\s+raise RuntimeError\(\)/);
+  assert.doesNotMatch(script, /os\.(unlink|remove|rmdir)|shell=True|settimeout/);
+});
+
 test("tree command preserves the verified user identity and safe positional Python arguments", () => {
   for (const session of [SESSION, { ...SESSION, uid: 2001, gid: 2002 }, { ...SESSION, gid: 0 }]) {
     const requestId = "unit-request_123";
