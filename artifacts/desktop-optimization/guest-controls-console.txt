@@ -1,0 +1,80 @@
+[pocketosix] Loading CheerpX 1.4.0 from the official CDN…
+[pocketosix] Mounting pocketosix-alpine-20251007-v1
+
+   [1m[32mOpenRC [1m[36m0.45.2[m is starting up [1m[34mLinux 4.15.0-54-cheerpx (i386)[m
+
+ [1m[32m*[m Mounting /proc[K ...
+mount: mounting proc on /proc failed: Function not implemented
+[A[93C [1m[34m[[1m[31m !! [1m[34m][m
+ [1m[32m*[m Mounting /run[K ...
+mount: mounting tmpfs on /run failed: Function not implemented
+ [1m[31m*[m Unable to mount tmpfs on /run.[K
+ [1m[31m*[m Can't continue.[K
+ [1m[32m*[m Caching service dependencies[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Remounting devtmpfs on /dev[K ...
+mount: mounting dev on /dev failed: Function not implemented
+[A[93C [1m[34m[[1m[31m !! [1m[34m][m
+mknod: /dev/kmsg: Function not implemented
+ln: /dev/fd: Read-only file system
+ln: /dev/stdin: Read-only file system
+ln: /dev/stdout: Read-only file system
+ln: /dev/stderr: Read-only file system
+ [1m[32m*[m Starting udev[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Generating a rule to create a /dev/root symlink[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Populating /dev with existing devices through uevents[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Waiting for uevents to be processed[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Checking local filesystems [K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Remounting filesystems[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Mounting local filesystems[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Migrating /var/lock to /run/lock[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+mount: mounting / on /tmp/tmp.IGFjIA failed: Function not implemented
+umount: can't unmount /tmp/tmp.IGFjIA: Function not implemented
+ [1m[33m*[m Could not clean up underlying /run on /[K
+ [1m[32m*[m Creating user login records[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Cleaning /var/run[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m Cleaning /tmp directory[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+dmesg: klogctl: Function not implemented
+ [1m[32m*[m /run/dbus: correcting owner[K
+ [1m[32m*[m Starting System Message Bus[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+ [1m[32m*[m /run/lightdm: creating directory[K
+ [1m[32m*[m /run/lightdm: correcting owner[K
+ [1m[32m*[m Starting Display Manager[K ...
+[A[93C [1m[34m[[1m[32m ok [1m[34m][m
+
+Welcome to Alpine Linux 3.17
+Kernel 4.15.0-54-cheerpx on an i386 (/dev/tty1)
+
+? login: 
+Welcome to Alpine Linux 3.17
+Kernel 4.15.0-54-cheerpx on an i386 (/dev/tty2)
+
+? login: 
+Welcome to Alpine Linux 3.17
+Kernel 4.15.0-54-cheerpx on an i386 (/dev/tty3)
+
+? login: 
+Welcome to Alpine Linux 3.17
+Kernel 4.15.0-54-cheerpx on an i386 (/dev/tty4)
+
+? login: 
+Welcome to Alpine Linux 3.17
+Kernel 4.15.0-54-cheerpx on an i386 (/dev/tty5)
+
+? login: 
+Welcome to Alpine Linux 3.17
+Kernel 4.15.0-54-cheerpx on an i386 (/dev/tty6)
+
+? login: [pocketosix-guest]{"operation": "probe", "requestId": "eaa56d4e-048f-437a-be31-097d41744464", "state": "ready", "session": {"uid": 1000, "gid": 1000, "socketPath": "/tmp/i3-user.ibbncG/ipc-socket.529"}, "user": "user", "apps": ["launcher", "terminal", "files", "lightweight-files", "windows"]}

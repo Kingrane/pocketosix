@@ -26,6 +26,18 @@ test("display dimensions preserve aspect ratio and the minimum usable desktop", 
   assert.deepEqual(getDisplaySize(360, 720), { width: 1024, height: 2048 });
   assert.ok(Number.isFinite(getDisplaySize(0, 0).width));
 });
+test("display dimensions ignore subpixel jitter and cap oversized or narrow stages", () => {
+  assert.deepEqual(getDisplaySize(1439.9, 899.9), getDisplaySize(1440.1, 900.1));
+  assert.deepEqual(getDisplaySize(3840, 2160), { width: 3840, height: 2160 });
+  assert.deepEqual(getDisplaySize(5120, 2880), { width: 4096, height: 2304 });
+  assert.deepEqual(getDisplaySize(1440, 1), { width: 4096, height: 768 });
+  assert.deepEqual(getDisplaySize(1, 900), { width: 1024, height: 4096 });
+  for (const [width, height] of [[NaN, Infinity], [Number.MAX_VALUE, Number.MAX_VALUE], [-1, 0]]) {
+    const size = getDisplaySize(width, height);
+    assert.ok(Number.isInteger(size.width) && size.width >= 1024 && size.width <= 4096);
+    assert.ok(Number.isInteger(size.height) && size.height >= 768 && size.height <= 4096);
+  }
+});
 test("login redirect permits only HTTPS Tailscale domains", () => {
   assert.equal(validateLoginUrl("https://login.tailscale.com/a/test"), "https://login.tailscale.com/a/test");
   for (const value of ["javascript:alert(1)", "http://login.tailscale.com/a", "https://tailscale.com.evil.example/", "https://example.com/"]) {

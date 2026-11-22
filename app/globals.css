@@ -34,6 +34,8 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
 input, select, textarea { background: var(--surface); border: 1px solid var(--border-hi); border-radius: 8px; accent-color: var(--accent); }
 img, svg, video, canvas { display: block; }
+/* Xorg draws its cursor in the framebuffer; keep the host cursor on browser UI. */
+.app-shell[data-vm-phase="ready"] #main-content:not([inert]) .linux-canvas.is-live { cursor: none; }
 img, video { max-width: 100%; height: auto; }
 svg { flex-shrink: 0; }
 code, pre, kbd { font-family: var(--font-mono); }

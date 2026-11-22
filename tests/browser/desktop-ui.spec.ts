@@ -1,15 +1,16 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { mockSDK, MOCK_SDK_URL, type MockSDKState } from "./mock-sdk";
+import { getDisplaySize } from "../../lib/webvm-config";
 
 // Mock SDK frames and captured input exercise browser UI contracts only.
 // These tests do not prove Linux boot, guest shortcuts or durable disk writes.
 const OVERLAY_ID = "pocketosix-alpine-20251007-v1";
 const KMS_INPUT = "body > textarea[data-pocketosix-kms-input]";
-const panels = ["display", "terminal", "disk", "network", "shortcuts", "logs"] as const;
-const headings = { display: "Display", terminal: "Terminal", disk: "Disk", network: "Network", shortcuts: "Keyboard shortcuts", logs: "Logs" };
+const panels = ["apps", "display", "terminal", "disk", "network", "shortcuts", "logs"] as const;
+const headings = { apps: "Apps", display: "Display", terminal: "Terminal", disk: "Disk", network: "Network", shortcuts: "Keyboard shortcuts", logs: "Logs" };
 type FixtureWindow = Window & {
   __pocketTest: MockSDKState;
-  __desktopNodes: { canvas: Element | null; console: Element | null; panel: Element | null };
+  __desktopNodes: { stage: Element | null; canvas: Element | null; console: Element | null; panel: Element | null };
   __desktopDocument?: boolean;
   __keyProbe: { type: string; key: string }[];
   __fullscreenExitCalls: number;
@@ -35,16 +36,25 @@ async function rect(locator: Locator) {
   return box!;
 }
 
+async function settleLayout(page: Page) {
+  // Let layout, ResizeObserver and deferred focus work run; no wall-clock sleep.
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+}
+
+async function framebuffer(page: Page) {
+  return page.locator(".linux-canvas").evaluate((canvas: HTMLCanvasElement) => ({ width: canvas.width, height: canvas.height }));
+}
+
 async function rememberNodes(page: Page) {
   await page.evaluate(() => {
-    (window as unknown as FixtureWindow).__desktopNodes = { canvas: document.querySelector(".linux-canvas"), console: document.querySelector(".system-console"), panel: document.querySelector("#desktop-panel") };
+    (window as unknown as FixtureWindow).__desktopNodes = { stage: document.querySelector(".desktop-stage"), canvas: document.querySelector(".linux-canvas"), console: document.querySelector(".system-console"), panel: document.querySelector("#desktop-panel") };
   });
 }
 
 async function expectSameNodes(page: Page) {
   expect(await page.evaluate(() => {
     const nodes = (window as unknown as FixtureWindow).__desktopNodes;
-    return nodes.canvas === document.querySelector(".linux-canvas") && nodes.console === document.querySelector(".system-console") && nodes.panel === document.querySelector("#desktop-panel") && Object.values(nodes).every((node) => node?.isConnected);
+    return nodes.stage === document.querySelector(".desktop-stage") && nodes.canvas === document.querySelector(".linux-canvas") && nodes.console === document.querySelector(".system-console") && nodes.panel === document.querySelector("#desktop-panel") && Object.values(nodes).every((node) => node?.isConnected);
   })).toBe(true);
 }
 
@@ -58,16 +68,22 @@ async function openTerminal(page: Page) {
 }
 
 async function enterImmersive(page: Page) {
-  await page.getByRole("button", { name: "Immersive", exact: true }).click();
+  await page.getByRole("navigation", { name: "Desktop rail", exact: true }).getByRole("button", { name: "Immersive", exact: true }).click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
   await expect(page.locator(".app-shell")).toHaveAttribute("data-mode", "immersive");
+  const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+  // Fullscreen layout precedes the debounced KMS bind. Its old body textarea
+  // must not satisfy the focus check before that bind replaces it.
+  await expect.poll(() => framebuffer(page)).toEqual(getDisplaySize(size.width, size.height));
+  await expect(page.locator(KMS_INPUT)).toHaveCount(1);
   await expect(page.locator(KMS_INPUT)).toBeFocused();
 }
 
 async function revealControls(page: Page) {
-  await page.mouse.move(page.viewportSize()!.width / 2, 12);
+  await page.getByRole("button", { name: "Show desktop controls", exact: true }).hover();
   await expect(toolbar(page)).toHaveCSS("opacity", "1");
   await toolbar(page).hover();
+  await expect.poll(() => toolbar(page).evaluate((node) => node.matches(":hover"))).toBe(true);
 }
 
 test("direct /run and preboot rail panels make no SDK/CDN request or mock session", async ({ page }) => {
@@ -98,13 +114,16 @@ test("direct /run and preboot rail panels make no SDK/CDN request or mock sessio
   await expect(page.locator(".app-shell")).toHaveAttribute("data-vm-phase", "idle");
 });
 
-test("48px rail and 8px inset become one 320px pushing panel; switching and repeat-collapse reuse canvas, pre and dialog", async ({ page }) => {
+test("every docked panel overlays the 48px rail edge without moving stage, canvas or framebuffer", async ({ page }) => {
   await openRun(page);
   const rail = page.getByRole("navigation", { name: "Desktop rail", exact: true });
   const stage = page.locator(".desktop-stage");
   const panel = page.locator("#desktop-panel");
   const viewport = page.viewportSize()!;
   const collapsed = await rect(stage);
+  const canvasBox = await rect(page.locator(".linux-canvas"));
+  const initialFramebuffer = await framebuffer(page);
+  const initialBindings = (await state(page)).kmsBindings;
   expect((await rect(rail)).width).toBeCloseTo(48, 0);
   expect(collapsed.x).toBeCloseTo(56, 0);
   expect(collapsed.y).toBeCloseTo(8, 0);
@@ -113,7 +132,7 @@ test("48px rail and 8px inset become one 320px pushing panel; switching and repe
   await expect(stage).toHaveCSS("border-radius", "10px");
   await expect(page.locator("dialog[open]")).toHaveCount(0);
   await rememberNodes(page);
-  for (const name of ["disk", "display", "terminal", "network", "shortcuts", "logs"] as const) {
+  for (const name of ["apps", "disk", "display", "terminal", "network", "shortcuts", "logs"] as const) {
     await trigger(page, name).click();
     await expect(panel).toBeVisible();
     await expect(panel.getByRole("heading", { level: 2 })).toHaveCount(1);
@@ -124,16 +143,25 @@ test("48px rail and 8px inset become one 320px pushing panel; switching and repe
     expect(await panel.evaluate((node) => node.matches(":modal"))).toBe(false);
     expect((await rect(panel)).x).toBeCloseTo(48, 0);
     expect((await rect(panel)).width).toBeCloseTo(320, 0);
-    const expanded = await rect(stage);
-    expect(expanded.x - collapsed.x).toBeCloseTo(320, 0);
-    expect(collapsed.width - expanded.width).toBeCloseTo(320, 0);
+    await expect(page.locator("#main-content")).toHaveAttribute("inert", "");
+    await settleLayout(page);
+    expect(await rect(stage)).toEqual(collapsed);
+    expect(await rect(page.locator(".linux-canvas"))).toEqual(canvasBox);
+    expect(await framebuffer(page)).toEqual(initialFramebuffer);
+    expect((await state(page)).kmsBindings).toBe(initialBindings);
     await expectSameNodes(page);
   }
   await expect(page.locator(".system-console")).toContainText("[test fixture] init started");
   await trigger(page, "logs").click();
   await expect(page.locator("dialog[open]")).toHaveCount(0);
   await expect(trigger(page, "logs")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.locator("#main-content")).not.toHaveAttribute("inert", "");
+  await expect(trigger(page, "logs")).toBeFocused();
+  await settleLayout(page);
   expect(await rect(stage)).toEqual(collapsed);
+  expect(await rect(page.locator(".linux-canvas"))).toEqual(canvasBox);
+  expect(await framebuffer(page)).toEqual(initialFramebuffer);
+  expect((await state(page)).kmsBindings).toBe(initialBindings);
   await expect(page.locator(".system-console")).toBeAttached();
   await expectSameNodes(page);
   expect((await state(page)).boots).toBe(1);
@@ -147,6 +175,8 @@ for (const locale of ["en", "ru"] as const) {
     await expect(page.locator("html")).toHaveAttribute("lang", locale);
     const stageBox = await rect(page.locator(".desktop-stage"));
     const canvasBox = await rect(page.locator(".linux-canvas"));
+    const initialFramebuffer = await framebuffer(page);
+    const initialBindings = (await state(page)).kmsBindings;
     await rememberNodes(page);
     for (const name of panels) {
       await trigger(page, name).click();
@@ -162,12 +192,136 @@ for (const locale of ["en", "ru"] as const) {
       expect(await rect(page.locator(".desktop-stage"))).toEqual(stageBox);
       expect(await rect(page.locator(".linux-canvas"))).toEqual(canvasBox);
       await expect(page.locator("#main-content")).toHaveAttribute("inert", "");
+      await settleLayout(page);
+      expect(await framebuffer(page)).toEqual(initialFramebuffer);
+      expect((await state(page)).kmsBindings).toBe(initialBindings);
       await expectSameNodes(page);
     }
     await trigger(page, "logs").click();
     await expect(page.locator("dialog[open]")).toHaveCount(0);
     await expect(page.locator("#main-content")).not.toHaveAttribute("inert", "");
+    await expect(trigger(page, "logs")).toBeFocused();
+    await settleLayout(page);
     expect(await rect(page.locator(".linux-canvas"))).toEqual(canvasBox);
+    expect(await framebuffer(page)).toEqual(initialFramebuffer);
+    expect((await state(page)).kmsBindings).toBe(initialBindings);
+    expect((await state(page)).boots).toBe(1);
+  });
+}
+
+for (const viewport of [{ width: 1440, height: 960 }, { width: 390, height: 844 }]) {
+  test(`${viewport.width}px every panel blocks guest focus and restores its rail trigger on close`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openRun(page);
+    const canvas = page.locator(".linux-canvas");
+    const input = page.locator(KMS_INPUT);
+    const panel = page.locator("#desktop-panel");
+    const close = panel.getByRole("button", { name: "Close panel", exact: true });
+    await rememberNodes(page);
+    for (const name of panels) {
+      for (const method of ["button", "escape", "trigger"] as const) {
+        await canvas.focus();
+        await expect(input).toBeFocused();
+        await trigger(page, name).click();
+        await expect(close).toBeFocused();
+        await expect(page.locator("#main-content")).toHaveAttribute("inert", "");
+        // The SDK textarea lives under body, outside the inert workarea.
+        // Neither direct canvas focus nor direct textarea focus may bypass it.
+        await canvas.focus();
+        await input.focus();
+        await expect(close).toBeFocused();
+        await page.keyboard.press("a");
+        expect((await state(page)).kmsKeys).toEqual([]);
+        await page.keyboard.press("Tab");
+        await expect(input).not.toBeFocused();
+        await expect.poll(() => canvas.evaluate((node) => node === document.activeElement)).toBe(false);
+        if (method === "button") await close.click();
+        else if (method === "escape") { await close.focus(); await page.keyboard.press("Escape"); }
+        else await trigger(page, name).click();
+        await expect(panel).not.toBeVisible();
+        await expect(page.locator("#main-content")).not.toHaveAttribute("inert", "");
+        await expect(trigger(page, name)).toBeFocused();
+        await expectSameNodes(page);
+      }
+    }
+    await canvas.focus();
+    await expect(input).toBeFocused();
+    await page.keyboard.press("b");
+    expect((await state(page)).kmsKeys).toEqual(["b"]);
+    expect((await state(page)).boots).toBe(1);
+  });
+
+  test(`${viewport.width}px closing a panel selected from the guest menu returns native guest focus`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openRun(page);
+    const stageBox = await rect(page.locator(".desktop-stage"));
+    const canvasBox = await rect(page.locator(".linux-canvas"));
+    const initialBindings = (await state(page)).kmsBindings;
+    await rememberNodes(page);
+    for (const name of panels) {
+      await page.locator(".linux-canvas").focus();
+      await expect(page.locator(KMS_INPUT)).toBeFocused();
+      await page.keyboard.press("Control+Alt+Shift+m");
+      const menu = page.getByRole("dialog", { name: "Desktop menu", exact: true });
+      await expect(menu).toBeVisible();
+      await menu.getByRole("button", { name: name === "shortcuts" ? "Shortcuts" : headings[name], exact: true }).click();
+      const panel = page.locator("#desktop-panel");
+      const close = panel.getByRole("button", { name: "Close panel", exact: true });
+      await expect(panel).toBeVisible();
+      await expect(close).toBeFocused();
+      await expect(page.locator("#main-content")).toHaveAttribute("inert", "");
+      await close.click();
+      await expect(panel).not.toBeVisible();
+      await expect(page.locator(KMS_INPUT)).toBeFocused();
+      await settleLayout(page);
+      expect(await rect(page.locator(".desktop-stage"))).toEqual(stageBox);
+      expect(await rect(page.locator(".linux-canvas"))).toEqual(canvasBox);
+      expect((await state(page)).kmsBindings).toBe(initialBindings);
+      await expectSameNodes(page);
+    }
+    expect((await state(page)).boots).toBe(1);
+  });
+
+  test(`${viewport.width}px repeated Native/Fit toggles never feed canvas intrinsic dimensions back into KMS`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await openRun(page);
+    const canvas = page.locator(".linux-canvas");
+    const stage = page.locator(".desktop-stage");
+    const stageBox = await rect(stage);
+    const fitBox = await rect(canvas);
+    const initialFramebuffer = await framebuffer(page);
+    const initialBindings = (await state(page)).kmsBindings;
+    await rememberNodes(page);
+    for (let cycle = 0; cycle < 5; cycle++) {
+      await trigger(page, "display").click();
+      const panel = page.locator("#desktop-panel");
+      const native = panel.getByRole("button", { name: "Native", exact: true });
+      const fit = panel.getByRole("button", { name: "Fit", exact: true });
+      await native.click();
+      await expect(native).toHaveAttribute("aria-pressed", "true");
+      await expect(fit).toHaveAttribute("aria-pressed", "false");
+      await settleLayout(page);
+      const nativeBox = await rect(canvas);
+      expect(nativeBox.width).toBe(initialFramebuffer.width);
+      expect(nativeBox.height).toBe(initialFramebuffer.height);
+      expect(await rect(stage)).toEqual(stageBox);
+      expect(await framebuffer(page)).toEqual(initialFramebuffer);
+      expect((await state(page)).kmsBindings).toBe(initialBindings);
+      await fit.click();
+      await expect(fit).toHaveAttribute("aria-pressed", "true");
+      await expect(native).toHaveAttribute("aria-pressed", "false");
+      await settleLayout(page);
+      expect(await rect(canvas)).toEqual(fitBox);
+      expect(await rect(stage)).toEqual(stageBox);
+      expect(await framebuffer(page)).toEqual(initialFramebuffer);
+      expect((await state(page)).kmsBindings).toBe(initialBindings);
+      await panel.getByRole("button", { name: "Close panel", exact: true }).click();
+      await expect(panel).not.toBeVisible();
+      await expectSameNodes(page);
+    }
+    await settleLayout(page);
+    expect((await state(page)).kmsBindings).toBe(initialBindings);
+    expect((await state(page)).boots).toBe(1);
   });
 }
 
@@ -240,20 +394,33 @@ test("only the documented M chord is intercepted from KMS and tty1; modifier eve
   await expect(tty).toBeFocused();
 });
 
-test("a nonmodal docked panel permits tty1 sends; a modal menu or reset blocks even synthetic sends", async ({ page }) => {
+test("docked overlay panels, a modal menu and reset block tty1 sends until closed", async ({ page }) => {
   await openRun(page);
   const tty = await openTerminal(page);
   await page.keyboard.press("a");
   await expect.poll(async () => (await state(page)).consoleInput).toEqual([97]);
-  await trigger(page, "logs").click();
-  expect(await page.locator("#desktop-panel").evaluate((node) => node.matches(":modal"))).toBe(false);
+  const key = { key: "a", code: "KeyA", keyCode: 65, which: 65, bubbles: true, cancelable: true };
+  for (const name of panels) {
+    await trigger(page, name).click();
+    const panel = page.locator("#desktop-panel");
+    const close = panel.getByRole("button", { name: "Close panel", exact: true });
+    await expect(close).toBeFocused();
+    expect(await panel.evaluate((node) => node.matches(":modal"))).toBe(false);
+    await expect(page.locator("#main-content")).toHaveAttribute("inert", "");
+    await tty.focus();
+    await expect(close).toBeFocused();
+    await page.keyboard.press("b");
+    await tty.dispatchEvent("keydown", key);
+    expect((await state(page)).consoleInput).toEqual([97]);
+    await close.click();
+    await expect(panel).not.toBeVisible();
+  }
   await tty.focus();
   await page.keyboard.press("b");
   await expect.poll(async () => (await state(page)).consoleInput).toEqual([97, 98]);
   await page.keyboard.press("Control+Alt+Shift+m");
   const menu = page.getByRole("dialog", { name: "Desktop menu", exact: true });
   await expect(menu).toBeVisible();
-  const key = { key: "a", code: "KeyA", keyCode: 65, which: 65, bubbles: true, cancelable: true };
   await tty.dispatchEvent("keydown", key);
   expect((await state(page)).consoleInput).toEqual([97, 98]);
   await menu.getByRole("button", { name: "Disk", exact: true }).click();
@@ -345,7 +512,7 @@ test("HTML immersive includes body KMS; 40x4 notch and timed pill never resize c
   await rememberNodes(page);
   await enterImmersive(page);
   await expect(page.getByRole("navigation", { name: "Desktop rail", exact: true })).not.toBeVisible();
-  expect(await page.locator(KMS_INPUT).evaluate((input) => input.parentElement === document.body && document.fullscreenElement?.contains(input))).toBe(true);
+  expect(await page.locator(KMS_INPUT).evaluate((input) => input.isConnected && input.parentElement === document.body && document.fullscreenElement?.contains(input))).toBe(true);
   const canvas = page.locator(".linux-canvas");
   const full = await rect(canvas);
   const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));

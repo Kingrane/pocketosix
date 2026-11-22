@@ -1,6 +1,8 @@
 import type { Device, IDBDevice, Linux } from "@leaningtech/cheerpx";
 import { getDiskConfig, getDisplaySize, validateLoginUrl } from "./webvm-config";
 import { INITIAL_SNAPSHOT, type VMError, type WebVMSnapshot } from "./webvm-state";
+import { guestLaunchApp, guestProbeCommand, guestTreeCommand, guestWindowCommand, guestStartFloatingSubscriber, guestStopFloatingSubscriber, type GuestApp, type GuestCommand, type GuestDesktopSession, type GuestWindowTarget } from "./guest-desktop";
+import { guestWindows, INITIAL_GUEST_DESKTOP, type GuestDesktopState } from "./guest-desktop-state";
 
 type Mount = { type: "ext2" | "dir" | "devs" | "devpts" | "proc" | "sys"; path: string; dev?: Device };
 type NetworkMap = { self?: { addresses?: string[] }; peers?: { exitNode?: boolean }[] };
@@ -41,7 +43,10 @@ class WebVMController {
   private activityTimer: ReturnType<typeof setInterval> | null = null;
   private activity = { cpu: false, disk: false };
   private displaySize: { width: number; height: number } | null = null;
+  private kmsCanvas: HTMLCanvasElement | null = null;
   private resizeObserver: ResizeObserver | null = null;
+  private resizeTimer: ReturnType<typeof setTimeout> | null = null;
+  private logFrame: number | null = null;
   private releaseLock: (() => void) | null = null;
   private loginWindow: Window | null = null;
   private decoder = new TextDecoder();
@@ -52,6 +57,15 @@ class WebVMController {
   private consoleInput: ((keyCode: number) => void) | null = null;
   private bootStarted = 0;
   private resetting = false;
+  private guestSession: GuestDesktopSession | null = null;
+  private guestTask: Promise<boolean> | null = null;
+  private guestRun: Promise<unknown> | null = null;
+  private guestOutput = "";
+  private guestReply: { id: string; token: number; operation: "probe" | "tree"; resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void } | null = null;
+  private floatingToken: string | null = null;
+  private floatingTask: Promise<void> | null = null;
+  private floatingReady: ((error?: Error) => void) | null = null;
+  private floatingDisabled = false;
 
   getSnapshot = () => this.snapshot;
   getServerSnapshot = () => INITIAL_SNAPSHOT;
@@ -65,20 +79,213 @@ class WebVMController {
     this.listeners.forEach((listener) => listener());
   }
 
+  private updateGuest(next: Partial<GuestDesktopState>) {
+    this.update({ guestDesktop: { ...this.snapshot.guestDesktop, ...next } });
+  }
+
+  private readGuestOutput(text: string) {
+    this.guestOutput += text;
+    let end: number;
+    while ((end = this.guestOutput.indexOf("\n")) >= 0) {
+      const output = this.guestOutput.slice(0, end);
+      this.guestOutput = this.guestOutput.slice(end + 1);
+      try {
+        // tty prompts need not end in a newline. A control frame can therefore
+        // follow "login: " in the same console line; its nonce still must match.
+        const start = Math.max(output.lastIndexOf("[pocketosix-tree:"), output.lastIndexOf("[pocketosix-guest]"));
+        if (start < 0) continue;
+        const line = output.slice(start).trim();
+        const tree = line.match(/^\[pocketosix-tree:([a-zA-Z0-9_-]+)\](.*)$/);
+        const message = tree ? { operation: "tree", requestId: tree[1], tree: JSON.parse(tree[2]) } :
+          line.startsWith("[pocketosix-guest]") ? JSON.parse(line.slice("[pocketosix-guest]".length)) : null;
+        if (!message || typeof message !== "object") continue;
+        if (this.guestReply && this.active(this.guestReply.token) && message.requestId === this.guestReply.id && message.operation === this.guestReply.operation) this.guestReply.resolve(message);
+        if (message.operation === "floating" && message.token === `pocketosix-floating-stop:${this.floatingToken}`) {
+          if (message.state === "enabled") { this.updateGuest({ floating: "on" }); this.floatingReady?.(); }
+          else if (message.state === "disabled") this.floatingDisabled = true;
+          else if (message.state === "error") {
+            const error = new Error("i3 не смог переключить или восстановить плавающие окна.");
+            this.updateGuest({ error: error.message }); this.floatingReady?.(error);
+          }
+        }
+      } catch { /* Other guest output is not a control message. */ }
+    }
+    if (this.guestOutput.length > 2000000) {
+      this.guestReply?.reject(new Error("Ответ i3 превысил допустимый размер. Закройте лишние окна и повторите проверку."));
+      this.guestOutput = "";
+    }
+  }
+
+  private async guestDeadline<T>(task: Promise<T>, message: string) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([task, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(message)), 20000); })]);
+    } finally { clearTimeout(timer); }
+  }
+
+  private async runGuest(command: GuestCommand, token: number) {
+    this.check(token);
+    if (!this.vm) throw new BootCancelled();
+    const task = this.vm.run(command.fileName, command.args, command.options);
+    this.guestRun = task;
+    const settled = () => {
+      if (this.guestRun !== task) return;
+      this.guestRun = null;
+      if (this.active(token) && this.snapshot.guestDesktop.pending === "stalled") this.updateGuest({ pending: null });
+    };
+    void task.then(settled, settled);
+    const { status } = await this.guestDeadline(task, "Гостевая команда не завершилась за 20 секунд. Повтор заблокирован до её завершения; при необходимости перезагрузите вкладку.");
+    this.check(token);
+    if (status !== 0) throw new Error(`Гостевая команда ${command.fileName} завершилась с кодом ${status}.`);
+  }
+
+  private async guestQuery(command: GuestCommand, id: string, token: number) {
+    this.check(token);
+    const response = new Promise<Record<string, unknown>>((resolve, reject) => { this.guestReply = { id, token, operation: command.completion === "probe-exit" ? "probe" : "tree", resolve, reject }; });
+    // Attach a rejection handler before awaiting the process: dispose can reject
+    // a pending response while run() still belongs to the old guest lifetime.
+    void response.catch(() => {});
+    try {
+      const [, message] = await this.guestDeadline(Promise.all([this.runGuest(command, token), response]), "Не получен ответ текущей i3-сессии за 20 секунд. Откройте логи или перезапустите сессию.");
+      this.check(token);
+      return message;
+    } finally {
+      if (this.guestReply?.id === id) this.guestReply = null;
+    }
+  }
+
+  private async prepareGuest(token: number) {
+    this.check(token);
+    if (this.guestSession) return this.guestSession;
+    this.updateGuest({ phase: "checking" });
+    const id = crypto.randomUUID();
+    const message = await this.guestQuery(guestProbeCommand(id), id, token);
+    this.check(token);
+    const session = message.session as GuestDesktopSession | undefined;
+    if (message.state !== "ready" || !session || !Number.isSafeInteger(session.uid) || session.uid <= 0 || !Number.isSafeInteger(session.gid) || session.gid < 0 || typeof session.socketPath !== "string" || !session.socketPath.startsWith("/") || /[\x00\r\n]/.test(session.socketPath)) {
+      throw new Error("В госте не найдена однозначная доступная i3-сессия с Python 3.");
+    }
+    this.guestSession = session;
+    const supported: GuestApp[] = ["launcher", "terminal", "files", "lightweight-files", "windows"];
+    const apps = supported.filter(app => Array.isArray(message.apps) && message.apps.includes(app));
+    this.updateGuest({ apps });
+    return session;
+  }
+
+  private async readGuestWindows(token: number) {
+    const session = await this.prepareGuest(token);
+    const id = crypto.randomUUID();
+    const message = await this.guestQuery(guestTreeCommand(session, id), id, token);
+    this.check(token);
+    const root = message.tree as Record<string, unknown> | undefined;
+    if (!root || root.type !== "root" || !Array.isArray(root.nodes)) throw new Error("i3 вернул некорректное дерево окон. Список не обновлён.");
+    const windows = guestWindows(message.tree);
+    this.updateGuest({ phase: "ready", windows });
+    return windows;
+  }
+
+  private guestAction(pending: string, action: (token: number) => Promise<void>) {
+    if (!this.vm || this.snapshot.phase !== "ready" || this.resetting || this.guestTask || this.guestRun) return Promise.resolve(false);
+    const token = this.lifetime;
+    this.updateGuest({ pending, error: null });
+    const task = (async () => {
+      try { await action(token); this.check(token); return true; }
+      catch (error) {
+        if (this.active(token)) this.updateGuest({ phase: pending === "inspect" || !this.guestSession ? "error" : this.snapshot.guestDesktop.phase, error: error instanceof Error ? error.message : String(error) });
+        return false;
+      } finally { if (this.active(token)) this.updateGuest({ pending: this.guestRun ? "stalled" : null }); }
+    })();
+    this.guestTask = task;
+    void task.then(() => { if (this.guestTask === task) this.guestTask = null; });
+    return task;
+  }
+
+  inspectGuestDesktop = () => this.guestAction("inspect", async token => { await this.readGuestWindows(token); });
+
+  launchGuestApp = (app: GuestApp) => this.guestAction(app, async token => {
+    const session = await this.prepareGuest(token);
+    if (!this.snapshot.guestDesktop.apps.includes(app)) throw new Error("Это приложение не найдено в текущем госте.");
+    const before = await this.readGuestWindows(token);
+    await this.runGuest(guestLaunchApp(session, app), token);
+    const classes: Record<GuestApp, RegExp> = { terminal: /^XTerm$/i, files: /^Thunar$/i, "lightweight-files": /^Pcmanfm$/i, launcher: /^Rofi$/i, windows: /^Rofi$/i };
+    const started = performance.now();
+    do {
+      const windows = await this.readGuestWindows(token);
+      if (windows.some(window => !window.hidden && classes[app].test(window.className) && window.rect.width > 0 && window.rect.height > 0 &&
+        (!before.some(old => old.windowId === window.windowId) || (app !== "terminal" && window.focused)))) return;
+      await new Promise(resolve => setTimeout(resolve, 500));
+      this.check(token);
+    } while (performance.now() - started < 30000);
+    throw new Error("i3 принял запуск, но окно приложения не появилось за 30 секунд. Проверьте гостя и логи; повторный запуск не выполнен автоматически.");
+  });
+
+  controlGuestWindow = (target: GuestWindowTarget, action: "close" | "hide" | "restore" | "floating" | "tiling") => this.guestAction(action, async token => {
+    const session = await this.prepareGuest(token);
+    const windows = await this.readGuestWindows(token);
+    const window = windows.find(window => window.windowId === target.windowId && window.containerId === target.containerId);
+    if (!window) throw new Error("Это окно уже закрыто или изменилось. Обновите список окон.");
+    if (action === "restore" && !window.hidden) throw new Error("Окно уже видно; повторный scratchpad show снова скрыл бы его.");
+    await this.runGuest(guestWindowCommand(session, target, action), token);
+    await this.readGuestWindows(token);
+  });
+
+  toggleGuestFloating = () => this.guestAction("floating", async token => {
+    const session = await this.prepareGuest(token);
+    if (this.floatingTask && this.floatingToken) {
+      this.updateGuest({ floating: "stopping" });
+      await this.runGuest(guestStopFloatingSubscriber(session, this.floatingToken), token);
+      await this.guestDeadline(this.floatingTask, "Остановка floating ещё не подтверждена. Подписчик остаётся закреплён за сессией; новый не запускается. Проверьте логи или перезагрузите вкладку.");
+      this.check(token);
+      if (!this.floatingDisabled) throw new Error("Подписчик завершился, но восстановление окон не подтверждено гостем. Часть окон могла остаться плавающей.");
+      await this.readGuestWindows(token);
+      return;
+    }
+    if (!this.vm) throw new BootCancelled();
+    this.floatingToken = crypto.randomUUID();
+    this.floatingDisabled = false;
+    this.updateGuest({ floating: "starting" });
+    const ready = new Promise<void>((resolve, reject) => { this.floatingReady = error => error ? reject(error) : resolve(); });
+    void ready.catch(() => {});
+    const command = guestStartFloatingSubscriber(session, this.floatingToken);
+    const task = this.vm.run(command.fileName, command.args, command.options).then(({ status }) => {
+      if (this.active(token) && status !== 0) throw new Error(`Floating-подписчик завершился с кодом ${status}.`);
+    }).catch(error => {
+      if (this.active(token)) { this.updateGuest({ error: String(error) }); this.floatingReady?.(error instanceof Error ? error : new Error(String(error))); }
+      throw error;
+    }).finally(() => {
+      if (this.active(token)) {
+        this.floatingReady?.(new Error("Floating-подписчик остановился до подтверждения готовности."));
+        this.floatingReady = null; this.floatingTask = null; this.floatingToken = null;
+        this.updateGuest({ floating: "off" });
+      }
+    });
+    this.floatingTask = task;
+    // The subscriber lives in the background; observe errors without turning
+    // failed rollback into a fulfilled stop result.
+    void task.catch(() => {});
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try { await Promise.race([ready, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Floating ещё не подтверждён гостем. Проверьте логи; повторный подписчик не запускается.")), 20000); })]); }
+    finally { clearTimeout(timer); this.floatingReady = null; }
+    await this.readGuestWindows(token);
+  });
+
   attach(canvas: HTMLCanvasElement, consoleElement: HTMLPreElement) {
     if (this.teardown) clearTimeout(this.teardown);
     this.teardown = null;
     this.owners++;
-    if (this.canvas !== canvas) this.displaySize = null;
     this.canvas = canvas;
     this.consoleElement = consoleElement;
     consoleElement.textContent = this.log;
     if (this.vm) {
       this.resize();
+      this.observeDisplay();
     }
     return () => {
       this.owners--;
       if (!this.owners) {
+        this.stopObservingDisplay();
+        if (this.logFrame !== null) cancelAnimationFrame(this.logFrame);
+        this.logFrame = null;
         this.canvas = null;
         this.consoleElement = null;
         this.teardown = setTimeout(() => { void this.dispose(); }, 250);
@@ -104,6 +311,8 @@ class WebVMController {
 
   sendTerminal = (text: string) => {
     if (!this.snapshot.consoleReady || document.querySelector("dialog:modal")) return;
+    const terminalElement = document.querySelector(".xterm");
+    if (terminalElement?.closest("[inert]")) return;
     // Official WebVM custom-console contract. KMS keyboard/mouse input remains
     // entirely owned by the SDK; this function feeds only the tty1 console.
     for (let i = 0; i < text.length; i++) this.consoleInput?.(text.charCodeAt(i));
@@ -221,7 +430,9 @@ class WebVMController {
       }, 500);
       this.consoleInput = vm.setCustomConsole((buffer, vt) => {
         if (!this.active(token)) return;
-        this.appendLog(this.decoder.decode(buffer, { stream: true }));
+        const output = this.decoder.decode(buffer, { stream: true });
+        this.readGuestOutput(output);
+        this.appendLog(output);
         if (vt === 1) {
           const text = this.terminalDecoder.decode(buffer, { stream: true });
           this.terminalLog = (this.terminalLog + text).slice(-60000);
@@ -236,8 +447,7 @@ class WebVMController {
         }
       });
       this.resize();
-      this.resizeObserver = new ResizeObserver(() => this.resize());
-      if (this.canvas) this.resizeObserver.observe(this.canvas);
+      this.observeDisplay();
       this.update({ phase: "starting" });
       this.slowTimer = setTimeout(() => { if (this.active(token) && this.snapshot.phase === "starting") this.update({ bootSlow: true }); }, 90000);
       void this.refreshStorage();
@@ -274,19 +484,54 @@ class WebVMController {
 
   private appendLog(text: string) {
     this.log = (this.log + text).slice(-40000);
-    if (this.consoleElement) {
+    // Console callbacks can arrive in bursts. Preserve the buffer immediately,
+    // but avoid replacing 40 KB of DOM and forcing layout for every chunk.
+    if (!this.consoleElement || this.logFrame !== null) return;
+    this.logFrame = requestAnimationFrame(() => {
+      this.logFrame = null;
+      if (!this.consoleElement) return;
       this.consoleElement.textContent = this.log;
       this.consoleElement.scrollTop = this.consoleElement.scrollHeight;
-    }
+    });
+  }
+
+  private observeDisplay() {
+    this.stopObservingDisplay();
+    const stage = this.canvas?.parentElement;
+    if (!stage) return;
+    const observer = new ResizeObserver(() => {
+      if (this.resizeObserver !== observer) return;
+      if (this.resizeTimer) clearTimeout(this.resizeTimer);
+      // A settled viewport change needs one mode switch, not one per animation
+      // frame. setKmsCanvas recreates the SDK's keyboard textarea every time.
+      this.resizeTimer = setTimeout(() => {
+        this.resizeTimer = null;
+        this.resize();
+      }, 150);
+    });
+    // The host keeps this stage fixed; panels and fit/native are overlays/CSS.
+    // Never observe the canvas: native auto sizing feeds KMS dimensions back
+    // into layout. Border-box also ignores native-mode scrollbar changes.
+    this.resizeObserver = observer;
+    observer.observe(stage, { box: "border-box" });
+  }
+
+  private stopObservingDisplay() {
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+    if (this.resizeTimer) clearTimeout(this.resizeTimer);
+    this.resizeTimer = null;
   }
 
   private resize() {
     if (!this.vm || !this.canvas) return;
-    const rect = this.canvas.getBoundingClientRect();
+    const rect = this.canvas.parentElement?.getBoundingClientRect();
+    if (!rect) return;
     if (!rect.width || !rect.height) return;
     const size = getDisplaySize(rect.width, rect.height);
-    if (this.displaySize?.width === size.width && this.displaySize.height === size.height) return;
+    if (this.kmsCanvas === this.canvas && this.displaySize?.width === size.width && this.displaySize.height === size.height) return;
     this.vm.setKmsCanvas(this.canvas, size.width, size.height);
+    this.kmsCanvas = this.canvas;
     this.displaySize = size;
   }
 
@@ -348,7 +593,14 @@ class WebVMController {
     const token = this.lifetime;
     try {
       const [estimate, persistent] = await Promise.all([navigator.storage.estimate(), navigator.storage.persisted()]);
-      if (this.active(token)) this.update({ storage: { usage: estimate.usage ?? null, quota: estimate.quota ?? null, persistent, checked: true } });
+      if (this.active(token)) {
+        const usage = estimate.usage ?? null;
+        const quota = estimate.quota ?? null;
+        const previous = this.snapshot.storage;
+        if (!previous.checked || previous.usage !== usage || previous.quota !== quota || previous.persistent !== persistent) {
+          this.update({ storage: { usage, quota, persistent, checked: true } });
+        }
+      }
     } catch { /* Storage estimates are optional; they must not stop Linux. */ }
   }
 
@@ -379,8 +631,13 @@ class WebVMController {
 
   private stopRuntime() {
     this.lifetime++;
+    this.guestReply?.reject(new BootCancelled());
+    this.floatingReady?.(new BootCancelled());
+    this.guestReply = null; this.floatingReady = null;
+    this.guestSession = null; this.guestTask = null; this.guestRun = null; this.guestOutput = "";
+    this.floatingTask = null; this.floatingToken = null;
     this.consoleInput = null;
-    this.update({ consoleReady: false });
+    this.update({ consoleReady: false, guestDesktop: INITIAL_GUEST_DESKTOP });
     if (this.slowTimer) clearTimeout(this.slowTimer);
     if (this.storageTimer) clearInterval(this.storageTimer);
     if (this.frameTimer) clearInterval(this.frameTimer);
@@ -390,8 +647,11 @@ class WebVMController {
     this.frameTimer = null;
     this.activityTimer = null;
     this.displaySize = null;
-    this.resizeObserver?.disconnect();
-    this.resizeObserver = null;
+    this.kmsCanvas = null;
+    this.stopObservingDisplay();
+    if (this.logFrame !== null) cancelAnimationFrame(this.logFrame);
+    this.logFrame = null;
+    if (this.consoleElement) this.consoleElement.textContent = this.log;
     for (const { name, callback } of this.callbacks) this.vm?.unregisterCallback(name, callback);
     this.callbacks = [];
     this.vm?.delete();

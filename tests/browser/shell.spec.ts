@@ -27,7 +27,8 @@ function rail(page: Page) {
 }
 
 async function revealToolbar(page: Page) {
-  await page.mouse.move(1, 12);
+  const russian = await page.locator("html").getAttribute("lang") === "ru";
+  await page.getByRole("button", { name: russian ? "Показать управление рабочим столом" : "Show desktop controls", exact: true }).hover();
   // Opacity-hidden controls still satisfy Playwright's toBeVisible().
   await expect(toolbar(page)).toHaveCSS("opacity", "1");
 }
@@ -35,7 +36,7 @@ async function revealToolbar(page: Page) {
 async function openMenu(page: Page) {
   if (await toolbar(page).count()) {
     await revealToolbar(page);
-    await page.getByRole("button", { name: "Open menu", exact: true }).click();
+    await toolbar(page).getByRole("button", { name: "Open menu", exact: true }).click();
   } else {
     await rail(page).getByRole("button", { name: "Disk", exact: true }).focus();
     await page.keyboard.press("Control+Alt+Shift+m");
@@ -183,7 +184,7 @@ test("immersive shortcuts drawer traps focus and returns it to the guest", async
   await rail(page).getByRole("button", { name: "Immersive", exact: true }).click();
   await expect(page.locator(".app-shell")).toHaveAttribute("data-mode", "immersive");
   await revealToolbar(page);
-  const opener = page.getByRole("button", { name: "Keyboard shortcuts", exact: true });
+  const opener = toolbar(page).getByRole("button", { name: "Keyboard shortcuts", exact: true });
   await opener.focus();
   await page.keyboard.press("Enter");
   const drawer = activeDialog(page);
@@ -292,9 +293,8 @@ test("guest networking is opt-in and login has a popup-blocking fallback", async
   await openRun(page);
   expect(context.pages()).toHaveLength(1);
   await rail(page).getByRole("button", { name: "Network", exact: true }).click();
-  const drawer = activeDialog(page);
-  const network = drawer.locator("section").filter({ has: page.getByRole("heading", { name: "Network", exact: true }) });
-  await expect(network.getByText("Off", { exact: true })).toBeVisible();
+  const drawer = page.getByRole("dialog", { name: "Network", exact: true });
+  await expect(drawer.getByText("Off", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { __popupCalls: string[] }).__popupCalls)).toEqual([]);
   await expect(drawer.getByRole("link", { name: "Continue Tailscale sign-in", exact: true })).not.toBeAttached();
   await drawer.getByRole("button", { name: "Connect Tailscale", exact: true }).click();
@@ -388,7 +388,13 @@ test("guest WebDevice listings expose the selected Alpine wallpaper on this orig
 
 test("terminal tile docks, resizes by pointer and keyboard, and expands without reboot or PTY resize", async ({ page }) => {
   await openRun(page);
+  const stage = page.locator(".desktop-stage");
+  const initialBox = await stage.boundingBox();
+  const framebuffer = () => page.locator(".linux-canvas").evaluate((canvas: HTMLCanvasElement) => ({ width: canvas.width, height: canvas.height }));
+  const initialFramebuffer = await framebuffer();
   const terminal = await openTerminal(page);
+  expect(await stage.boundingBox()).toEqual(initialBox);
+  expect(await framebuffer()).toEqual(initialFramebuffer);
   const splitter = page.getByRole("separator", { name: "Terminal size", exact: true });
   await expect(splitter).toHaveAttribute("aria-orientation", "horizontal");
   await expect(splitter).toHaveAttribute("aria-valuenow", "280");
@@ -404,9 +410,13 @@ test("terminal tile docks, resizes by pointer and keyboard, and expands without 
   await page.mouse.move(rect!.x + rect!.width / 2 - 48, rect!.y + rect!.height / 2);
   await page.mouse.up();
   await expect(splitter).toHaveAttribute("aria-valuenow", "352");
+  expect(await stage.boundingBox()).toEqual(initialBox);
+  expect(await framebuffer()).toEqual(initialFramebuffer);
   await terminal.getByRole("button", { name: "Expand terminal", exact: true }).click();
   await expect(page.locator(".desktop-stage")).not.toBeVisible();
   await expect(terminal.getByRole("button", { name: "Restore terminal", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await stage.evaluate(node => node.getBoundingClientRect().width)).toBe(initialBox!.width);
+  expect(await framebuffer()).toEqual(initialFramebuffer);
   await terminal.getByRole("button", { name: "Restore terminal", exact: true }).click();
   await expect(page.locator(".desktop-stage")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -431,7 +441,7 @@ test("native fullscreen targets HTML, preserves the drawer and exits without ano
   await expect(activeDialog(page)).toHaveCount(0);
   await expect(page.locator(".linux-canvas")).toBeFocused();
   await revealToolbar(page);
-  await page.getByRole("button", { name: "Exit immersive", exact: true }).click();
+  await toolbar(page).getByRole("button", { name: "Exit immersive", exact: true }).click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
   await rail(page).getByRole("button", { name: "Immersive", exact: true }).click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
@@ -467,7 +477,7 @@ test("toolbar auto-hides, reveals near the top and stays available while focused
   await expect(toolbar(page)).toHaveCSS("opacity", "0");
   await expect(toolbar(page)).toHaveCSS("pointer-events", "none");
   await revealToolbar(page);
-  const opener = page.getByRole("button", { name: "Open menu", exact: true });
+  const opener = toolbar(page).getByRole("button", { name: "Open menu", exact: true });
   await opener.focus();
   await expect(opener).toBeFocused();
   await page.clock.fastForward(2500);
@@ -510,7 +520,7 @@ for (const width of [390, 768, 1440]) {
       await controls.getByRole("button", { name: locale === "en" ? "Immersive" : "Режим погружения", exact: true }).click();
       await expect(page.locator(".app-shell")).toHaveAttribute("data-mode", "immersive");
       await revealToolbar(page);
-      const opener = page.getByRole("button", { name: locale === "en" ? "Keyboard shortcuts" : "Сочетания клавиш", exact: true });
+      const opener = toolbar(page).getByRole("button", { name: locale === "en" ? "Keyboard shortcuts" : "Сочетания клавиш", exact: true });
       await opener.click();
       const drawer = activeDialog(page);
       await expect(drawer).toHaveAccessibleName(locale === "en" ? "Shortcuts" : "Сочетания клавиш");

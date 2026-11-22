@@ -10,7 +10,7 @@ export function useKmsInput(canvasRef: RefObject<HTMLCanvasElement | null>) {
     let pointerEvents = "";
     let tabIndex: string | null = null;
     let guestFocused = false;
-    const blocked = () => Boolean(canvasRef.current?.closest("[inert]") || document.querySelector("dialog:modal"));
+    const blocked = () => Boolean(canvasRef.current?.closest("[inert]") || document.querySelector("dialog:modal, [data-panel-overlay=true]"));
 
     const restore = () => {
       if (!input?.isConnected) return;
@@ -28,7 +28,7 @@ export function useKmsInput(canvasRef: RefObject<HTMLCanvasElement | null>) {
     const bind = () => {
       const next = find();
       if (next === input) return;
-      const shouldRestore = guestFocused && document.activeElement === document.body && !blocked();
+      const shouldRestore = !blocked() && (document.activeElement === canvasRef.current || (guestFocused && document.activeElement === document.body));
       restore();
       input = next;
       if (!input) return;
@@ -49,13 +49,22 @@ export function useKmsInput(canvasRef: RefObject<HTMLCanvasElement | null>) {
       }
     };
     const blur = () => { guestFocused = false; };
+    const keyboard = (event: KeyboardEvent) => {
+      const space = event.code === "Space" || (!event.code && event.key === " ");
+      if (event.target === input && !blocked() && space && event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey) {
+        // 1.4.0 only prevents Tab's default. Cancel this browser shortcut, not
+        // propagation: every real keydown / keyup still belongs to the SDK.
+        event.preventDefault();
+      }
+    };
     const observer = new MutationObserver(bind);
     // setKmsCanvas replaces its textarea on resize. Never move that textarea:
     // the runtime removes it from document.body during its own cleanup.
     observer.observe(document.body, { childList: true });
     document.addEventListener("focusin", focus);
+    document.addEventListener("keydown", keyboard, true);
     window.addEventListener("blur", blur);
     bind();
-    return () => { observer.disconnect(); document.removeEventListener("focusin", focus); window.removeEventListener("blur", blur); restore(); };
+    return () => { observer.disconnect(); document.removeEventListener("focusin", focus); document.removeEventListener("keydown", keyboard, true); window.removeEventListener("blur", blur); restore(); };
   }, [canvasRef]);
 }

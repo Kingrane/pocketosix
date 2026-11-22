@@ -65,6 +65,10 @@ Cross-Origin-Embedder-Policy: require-corp
 
 Deployment веб-оболочки не означает Linux compute на Vercel. Успешная сборка также не доказывает реальный boot или работоспособность гостевой сети.
 
+Для Vercel импортируйте `Kingrane/pocketosix`, ветку `main`, с корнем проекта `/`, preset **Next.js** и стандартной командой `npm run build`. Для стандартного Alpine-диска переменные `NEXT_PUBLIC_DISK_*` не нужны. После deployment откройте `/run` в desktop Chrome / Edge; проверьте реальные заголовки и `window.crossOriginIsolated === true`, затем boot. Новый домен имеет отдельный диск: локальные файлы с `localhost` туда автоматически не переносятся.
+
+**GitHub Pages не подходит для текущего приложения без переделки.** Нужен static export, тогда как текущие страницы используют server-side rendering; кроме того, Pages не предоставляет настройку обязательных HTTP COOP/COEP-заголовков через `next.config.ts` или `vercel.json`. Сам по себе экспорт HTML не обеспечит SharedArrayBuffer / CheerpX. Service-worker обход здесь не реализован и не проверен; отключать изоляцию нельзя. Для рабочего Linux desktop предпочтительнее Vercel либо хостинг с поддержкой Next.js и пользовательских response headers.
+
 ## Проверки
 
 ```powershell

@@ -9,6 +9,9 @@ const state = (page: Page) => page.evaluate(() => (window as unknown as { __pock
 test.beforeEach(async ({ page, context }) => {
   await mockSDK(context, { nativeKms: true });
   await page.goto("/run");
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-vm-phase", "idle");
+  await expect(page.locator(".linux-canvas")).not.toHaveCSS("cursor", "none");
+  await expect(page.getByRole("button", { name: "> boot", exact: true })).toHaveCSS("cursor", "pointer");
   await page.getByRole("button", { name: "> boot", exact: true }).click();
   await expect(page.locator(".app-shell")).toHaveAttribute("data-vm-phase", "ready");
   await expect(page.locator(inputSelector)).toBeAttached();
@@ -16,16 +19,128 @@ test.beforeEach(async ({ page, context }) => {
 
 test("native input never covers repeated canvas clicks and canvas focus delivers keys to its SDK-owned listener", async ({ page }) => {
   const canvas = page.locator(".linux-canvas");
-  await canvas.click({ position: { x: 200, y: 200 } });
-  await canvas.click({ position: { x: 210, y: 210 } });
+  for (const position of [{ x: 200, y: 200 }, { x: 200, y: 200 }, { x: 210, y: 210 }]) {
+    await canvas.click({ position });
+    await expect(page.locator(inputSelector)).toBeFocused();
+    expect(await canvas.evaluate((node, offset) => {
+      const rect = node.getBoundingClientRect();
+      return document.elementFromPoint(rect.left + offset.x, rect.top + offset.y) === node;
+    }, position)).toBe(true);
+  }
   await expect(page.locator(inputSelector)).toHaveCSS("pointer-events", "none");
   await expect(page.locator(inputSelector)).toHaveAttribute("tabindex", "-1");
-  expect((await state(page)).kmsClicks).toBe(2);
+  expect((await state(page)).kmsClicks).toBe(3);
   await page.locator('[data-panel-trigger="display"]').focus();
   await canvas.focus();
   await expect(page.locator(inputSelector)).toBeFocused();
   await page.keyboard.press("Alt+Enter");
   expect((await state(page)).kmsKeys).toEqual(["Alt", "Enter"]);
+  expect((await state(page)).kmsKeyUps).toEqual(["Enter", "Alt"]);
+});
+
+test("host cursor is hidden only on a live ready canvas, never browser controls or inactive phases", async ({ page }) => {
+  const canvas = page.locator(".linux-canvas");
+  const display = page.locator('[data-panel-trigger="display"]');
+  await expect(canvas).toHaveCSS("cursor", "none");
+  await expect(display).toHaveCSS("cursor", "pointer");
+  await expect(page.locator("body")).not.toHaveCSS("cursor", "none");
+  await display.click();
+  await expect(canvas).not.toHaveCSS("cursor", "none");
+  await expect(page.locator("#desktop-panel").getByRole("button", { name: "Fit", exact: true })).toHaveCSS("cursor", "pointer");
+  await page.locator("#desktop-panel [data-panel-close]").click();
+  await canvas.focus();
+  await page.keyboard.press("Control+Alt+Shift+m");
+  const menu = page.getByRole("dialog", { name: "Desktop menu", exact: true });
+  await expect(menu).toBeVisible();
+  await expect(canvas).not.toHaveCSS("cursor", "none");
+  await expect(menu.getByRole("button", { name: "Close", exact: true })).toHaveCSS("cursor", "pointer");
+  await menu.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(canvas).toHaveCSS("cursor", "none");
+  // CSS-only state matrix, including stale is-live after failure. Not a VM boot.
+  for (const phase of ["idle", "checking", "engine", "disk", "starting", "error", "stopped"]) {
+    await page.locator(".app-shell").evaluate((node, value) => { node.setAttribute("data-vm-phase", value); }, phase);
+    await expect(canvas).not.toHaveCSS("cursor", "none");
+    await expect(display).toHaveCSS("cursor", "pointer");
+  }
+  await page.locator(".app-shell").evaluate(node => { node.setAttribute("data-vm-phase", "ready"); });
+  await canvas.evaluate(node => { node.classList.remove("is-live"); });
+  await expect(canvas).not.toHaveCSS("cursor", "none");
+});
+
+test("cursor CSS neither acquires nor changes native pointer lock and controls retain their cursor after release", async ({ page }) => {
+  const canvas = page.locator(".linux-canvas");
+  await canvas.click({ position: { x: 200, y: 200 } });
+  expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
+  await expect(canvas).toHaveCSS("cursor", "none");
+  await canvas.evaluate((node: HTMLCanvasElement) => node.requestPointerLock());
+  await expect.poll(() => canvas.evaluate(node => document.pointerLockElement === node)).toBe(true);
+  await expect(canvas).toHaveCSS("cursor", "none");
+  // Actual cursor invisibility while locked is native browser behavior. This
+  // checks ownership/CSS only, not relative mouse delivery to Linux.
+  await page.evaluate(() => document.exitPointerLock());
+  await expect.poll(() => page.evaluate(() => document.pointerLockElement)).toBeNull();
+  const display = page.locator('[data-panel-trigger="display"]');
+  await display.click();
+  await expect(display).toHaveCSS("cursor", "pointer");
+  await expect(page.locator(inputSelector)).not.toBeFocused();
+  await page.locator("#desktop-panel [data-panel-close]").click();
+  await canvas.click({ position: { x: 200, y: 200 } });
+  await expect(page.locator(inputSelector)).toBeFocused();
+  expect((await state(page)).kmsClicks).toBe(2);
+  expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
+});
+
+test("late native input attachment honors existing canvas focus without synthesizing guest events", async ({ page }) => {
+  await page.locator('[data-panel-trigger="display"]').focus();
+  await page.evaluate(async (selector) => {
+    const input = document.querySelector(selector)!;
+    input.remove();
+    await new Promise<void>(resolve => queueMicrotask(resolve));
+    document.querySelector<HTMLCanvasElement>(".linux-canvas")!.focus();
+    document.body.appendChild(input);
+  }, inputSelector);
+  await expect(page.locator(inputSelector)).toBeFocused();
+  await expect(page.locator(inputSelector)).toHaveCSS("pointer-events", "none");
+  await page.keyboard.press("a");
+  expect((await state(page)).kmsKeys).toEqual(["a"]);
+  expect((await state(page)).kmsKeyUps).toEqual(["a"]);
+});
+
+test("Alt Shift Space cancels only the browser default in KMS and all real releases still reach the native listener", async ({ page }) => {
+  const input = page.locator(inputSelector);
+  await page.locator(".linux-canvas").focus();
+  await page.evaluate((selector) => {
+    const events: { type: string; code: string; prevented: boolean; native: boolean; trusted: boolean }[] = [];
+    Object.assign(window, { __spaceDefaults: events });
+    // Document capture runs after the hook but before the mock SDK's blanket
+    // preventDefault; it therefore proves the hook's narrowly scoped behavior.
+    const record = (event: KeyboardEvent) => {
+      if (event.code === "Space") events.push({ type: event.type, code: event.code, prevented: event.defaultPrevented, native: event.target === document.querySelector(selector), trusted: event.isTrusted });
+    };
+    document.addEventListener("keydown", record, true);
+    document.addEventListener("keyup", record, true);
+  }, inputSelector);
+  for (const key of ["Alt", "Shift", "Space"]) await page.keyboard.down(key);
+  await expect(input).toBeFocused();
+  await expect(page.locator("dialog:modal")).toHaveCount(0);
+  // Even releasing modifiers before Space must not swallow Space's keyup.
+  for (const key of ["Shift", "Alt", "Space"]) await page.keyboard.up(key);
+  expect((await state(page)).kmsKeys).toEqual(["Alt", "Shift", " "]);
+  expect((await state(page)).kmsKeyUps).toEqual(["Shift", "Alt", " "]);
+  await page.keyboard.press("Space");
+  await page.locator('[data-panel-trigger="display"]').focus();
+  await page.keyboard.press("Alt+Shift+Space");
+  const defaults = await page.evaluate(() => (window as unknown as { __spaceDefaults: { type: string; code: string; prevented: boolean; native: boolean; trusted: boolean }[] }).__spaceDefaults);
+  expect(defaults).toEqual([
+    { type: "keydown", code: "Space", prevented: true, native: true, trusted: true },
+    { type: "keyup", code: "Space", prevented: false, native: true, trusted: true },
+    { type: "keydown", code: "Space", prevented: false, native: true, trusted: true },
+    { type: "keyup", code: "Space", prevented: false, native: true, trusted: true },
+    { type: "keydown", code: "Space", prevented: false, native: false, trusted: true },
+    { type: "keyup", code: "Space", prevented: false, native: false, trusted: true },
+  ]);
+  expect((await state(page)).kmsKeys).toEqual(["Alt", "Shift", " ", " "]);
+  expect((await state(page)).kmsKeyUps).toEqual(["Shift", "Alt", " ", " "]);
 });
 
 test("resize replaces native input without losing guest focus or leaving duplicate listeners", async ({ page }) => {
@@ -84,19 +199,20 @@ test("M pressed before modifiers retains its matching guest keyup without openin
   expect((await state(page)).kmsKeyUps.map(key => key.toLowerCase())).toEqual(["m", "shift", "alt", "control"]);
 });
 
-test("crossing into mobile overlay transfers focus away from body KMS input", async ({ page }) => {
-  await page.locator('[data-panel-trigger="display"]').click();
+test("panel overlay keeps native KMS unfocused across desktop and mobile widths", async ({ page }) => {
   await page.locator(".linux-canvas").focus();
   await expect(page.locator(inputSelector)).toBeFocused();
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('[data-panel-trigger="display"]').click();
   const panel = page.locator("#desktop-panel");
-  await expect(page.locator("#main-content")).toHaveAttribute("inert", "");
-  await expect(panel.getByRole("button", { name: "Close panel", exact: true })).toBeFocused();
-  await page.keyboard.press("a");
-  expect((await state(page)).kmsKeys).toEqual([]);
-  await page.setViewportSize({ width: 400, height: 844 });
-  await expect(panel.getByRole("button", { name: "Close panel", exact: true })).toBeFocused();
-  await expect(page.locator(inputSelector)).not.toBeFocused();
+  for (const width of [1440, 1280, 390, 400]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect(page.locator("[data-panel-overlay=true]")).toBeVisible();
+    await expect(page.locator("#main-content")).toHaveAttribute("inert", "");
+    await expect(panel.locator("[data-panel-close]")).toBeFocused();
+    await expect(page.locator(inputSelector)).not.toBeFocused();
+    await page.keyboard.press("a");
+    expect((await state(page)).kmsKeys).toEqual([]);
+  }
 });
 
 test("resize does not steal tty1, menu or confirmation focus; dialog keys never reach native KMS", async ({ page }) => {
@@ -173,19 +289,28 @@ test("closing a dialog cannot restore stale focus over a subsequent canvas inter
   expect((await state(page)).kmsKeys).toEqual(["c"]);
 });
 
-test("a docked nonmodal Display panel does not block canvas input or focus restoration after KMS resize", async ({ page }) => {
+test("a docked Display overlay blocks native focus restoration after KMS resize and releases it on close", async ({ page }) => {
+  await page.locator(".linux-canvas").focus();
+  await expect(page.locator(inputSelector)).toBeFocused();
   await page.locator('[data-panel-trigger="display"]').click();
   const panel = page.locator("#desktop-panel");
   await expect(panel).toBeVisible();
-  expect(await panel.evaluate((node) => node.matches(":modal"))).toBe(false);
+  await expect(page.locator("[data-panel-overlay=true]")).toBeVisible();
+  await expect(page.locator("#main-content")).toHaveAttribute("inert", "");
   await page.locator(".linux-canvas").focus();
-  await expect(page.locator(inputSelector)).toBeFocused();
+  await expect(page.locator(inputSelector)).not.toBeFocused();
   const before = (await state(page)).kmsBindings;
   await page.setViewportSize({ width: 1280, height: 880 });
   await expect.poll(async () => (await state(page)).kmsBindings).toBeGreaterThan(before);
   await expect(page.locator(inputSelector)).toHaveCount(1);
+  await expect(page.locator(inputSelector)).not.toBeFocused();
+  await page.keyboard.press("d");
+  expect((await state(page)).kmsKeys).toEqual([]);
+  await expect(panel).toBeVisible();
+  await panel.locator("[data-panel-close]").click();
+  await expect(page.locator("[data-panel-overlay=true]")).toHaveCount(0);
+  await page.locator(".linux-canvas").focus();
   await expect(page.locator(inputSelector)).toBeFocused();
   await page.keyboard.press("d");
   expect((await state(page)).kmsKeys).toEqual(["d"]);
-  await expect(panel).toBeVisible();
 });

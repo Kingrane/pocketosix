@@ -1,24 +1,26 @@
 "use client";
 
 import { useId, useState, type RefObject } from "react";
-import { ArrowUpRight, Copy } from "lucide-react";
+import { ArrowUpRight, Copy, X } from "lucide-react";
 import { useLanguage } from "@/components/ui/language-provider";
 import { MENU_CHORD, type DialogName, type PanelName } from "@/lib/desktop-ui";
 import type { WebVMSnapshot } from "@/lib/webvm-state";
 import styles from "./desktop-panel.module.css";
+import { GuestDesktopControls, type GuestControlProps } from "./guest-desktop-controls";
 
 type Props = {
   name: PanelName | null; snapshot: WebVMSnapshot; scale: "fit" | "native";
   pointerLockAvailable: boolean; terminalOpen: boolean; consoleRef: RefObject<HTMLPreElement | null>;
-  onScale: (scale: "fit" | "native") => void; onPointerLock: () => void; onTerminal: () => void;
+  onClose: () => void; onScale: (scale: "fit" | "native") => void; onPointerLock: () => void; onTerminal: () => void;
   onDialog: (name: DialogName) => void; onConnect: () => void; onProtect: () => Promise<void>;
+  guestControls: Omit<GuestControlProps, "guest" | "ready">;
 };
 
 function Keys({ value }: { value: string }) {
   return <span className={styles.keys}>{value.split(" + ").map((key, index) => <span className={styles.keyPart} key={`${index}-${key}`}>{index > 0 && <span className={styles.plus} aria-hidden="true">+</span>}<kbd>{key}</kbd></span>)}</span>;
 }
 
-export function DesktopPanel({ name, snapshot, scale, pointerLockAvailable, terminalOpen, consoleRef, onScale, onPointerLock, onTerminal, onDialog, onConnect, onProtect }: Props) {
+export function DesktopPanel({ name, snapshot, scale, pointerLockAvailable, terminalOpen, consoleRef, onClose, onScale, onPointerLock, onTerminal, onDialog, onConnect, onProtect, guestControls }: Props) {
   const { t } = useLanguage();
   const id = useId();
   const [protecting, setProtecting] = useState(false);
@@ -52,8 +54,9 @@ export function DesktopPanel({ name, snapshot, scale, pointerLockAvailable, term
     ...["fullscreen", "floating", "resize"].map((key) => ({ keys: `docs.keyboard.shortcuts.${key}.keys`, action: `docs.keyboard.shortcuts.${key}.action` })),
   ];
   return <div className={styles.panel}>
+    <header className={styles.panelHeader}><h2 id={`${id}-title`}>{t(name ? `run.${name}Title` : "run.panel")}</h2><button type="button" className={styles.closeButton} data-panel-close aria-label={t("run.closePanel")} title={t("run.closePanel")} onClick={onClose}><X size={16} aria-hidden="true" /><span>{t("common.close")}</span></button></header>
     <section hidden={!name || name === "logs"} className={styles.content} aria-labelledby={`${id}-title`}>
-      {name && name !== "logs" && <h2 id={`${id}-title`}>{t(`run.${name}Title`)}</h2>}
+      {name === "apps" && <GuestDesktopControls guest={snapshot.guestDesktop} ready={ready} {...guestControls} />}
       {name === "display" && <>
         <div className={styles.segmented} role="group" aria-label={t("run.scaleTitle")}><button type="button" aria-pressed={scale === "fit"} onClick={() => onScale("fit")}>{t("run.fit")}</button><button type="button" aria-pressed={scale === "native"} onClick={() => onScale("native")}>{t("run.native")}</button></div>
         <button type="button" className="button button-secondary" onClick={onPointerLock} disabled={!ready || !pointerLockAvailable}>{t("run.pointerLock")}</button>
@@ -93,8 +96,8 @@ export function DesktopPanel({ name, snapshot, scale, pointerLockAvailable, term
       {operationError && (name === "display" || name === "disk") && <div className={styles.error} role="alert"><p>{t(name === "disk" && snapshot.operationError?.startsWith("Браузер не разрешил защиту") ? "run.protectionDenied" : "run.operationError")}</p><details className={styles.details}><summary>{t("run.technicalDetails")}</summary><pre>{operationError}</pre></details></div>}
     </section>
     {/* The adapter owns this exact pre node; switching panels must never replace it. */}
-    <section hidden={name !== "logs"} className={styles.content} aria-labelledby={`${id}-logs-title`}>
-      <header className={styles.panelHeader}><h2 id={`${id}-logs-title`}>{t("run.logsTitle")}</h2><button type="button" className="button button-secondary" onClick={() => void copyLogs()}><Copy size={14} aria-hidden="true" />{t("run.copyLogs")}</button></header>
+    <section hidden={name !== "logs"} className={styles.content} aria-labelledby={`${id}-title`}>
+      <button type="button" className={`button button-secondary ${styles.copyButton}`} onClick={() => void copyLogs()}><Copy size={14} aria-hidden="true" />{t("run.copyLogs")}</button>
       <p className={styles.helper}>{t("run.logsDescription")}</p>
       <p hidden={!copyState} className={styles.helper} role="status">{copyState && t(copyState === "copied" ? "run.logsCopied" : "run.clipboardDenied")}</p>
       <pre ref={consoleRef} className={`system-console ${styles.systemConsole}`} tabIndex={0} aria-label={t("run.logsTitle")} />

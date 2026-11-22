@@ -31,7 +31,20 @@ Starts the installed Next.js dev server with webpack at port **3000** and opens 
 
 An occupied port is an error: the launcher does not reuse another server or silently switch your storage origin. If your server is already running, open `/run` manually. **Ctrl+C** stops only the launcher's own server.
 
-[Local launch, browser shortcuts and manual i3 floating setup →](docs/desktop.md)
+[Local launch, apps, tty1 and i3 floating controls →](docs/desktop.md)
+
+Panels and the tty1 console overlay Linux without resizing it; the active desktop uses the guest cursor only. Actual viewport changes settle for 150 ms; framebuffer dimensions are capped at 4096 px per axis. [Display and input controls](docs/desktop.md#управление-на-run).
+
+## Apps and guest windows
+
+The shell has **seven panels**: Apps, Display, Terminal, Disk, Network, Shortcuts and Logs. The new controls below describe the current implementation **under verification**, not a real-guest test result or measured speedup.
+
+- **Apps → Linux terminal** launches guest `xterm` inside Xorg/i3. **Terminal → Open terminal** opens the browser's separate, real **tty1 console**; it does not launch that GUI terminal.
+- **All applications** uses `rofi -normal-window -show drun` as a managed i3 window. **Files · Thunar** matches the original guest Files action; **Files · PCManFM** is a separate alternative, not a verified faster one. Actions require a checked live session and an available application; an IPC acknowledgment alone is not application readiness.
+- **Use floating windows** is explicit and current-session-only: existing tiled and new normal windows float without rewriting the i3 config. **Stop floating mode** returns only still-visible windows changed by the mode to tiling, **not the exact old tile layout**. Previously floating windows are left alone, and scratchpad windows are never automatically unhidden. Reload does not preserve the mode.
+- **Refresh windows** reads the real i3 window list; it is not continuous tracking. Per-window **Close** requests guest closure, **Hide** uses i3 scratchpad without stopping the app, and **Show window** explicitly reveals a hidden window. The panel-header **Close** only closes the browser panel. Save documents first: an app may ask about unsaved changes, and neither hiding nor refreshing saves them. Unsaved documents and processes do not survive reload or exit.
+
+[Details, limits and optional persistent manual configuration →](docs/desktop.md)
 
 ## Three things to know
 

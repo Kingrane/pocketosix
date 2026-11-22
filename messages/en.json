@@ -69,7 +69,17 @@
     "exitHome": "Exit to home", "backHome": "Back to home", "enterImmersive": "Immersive", "exitImmersive": "Exit immersive", "showControls": "Show desktop controls",
     "errorStatus": "Error", "stoppedStatus": "Not started", "immersiveHint": "Move the mouse to the top edge for controls.",
     "commandPalette": "Command palette", "searchActions": "Search actions…",
-    "panels": { "display": "Display", "terminal": "Terminal", "disk": "Disk", "network": "Network", "shortcuts": "Shortcuts", "logs": "Logs" },
+    "panels": { "apps": "Apps", "display": "Display", "terminal": "Terminal", "disk": "Disk", "network": "Network", "shortcuts": "Shortcuts", "logs": "Logs" },
+    "appsTitle": "Apps",
+    "guest": {
+      "description": "Real Linux apps, without browser-intercepted Alt shortcuts.",
+      "apps": { "launcher": "All applications", "terminal": "Linux terminal", "files": "Files · Thunar", "lightweight-files": "Files · PCManFM" },
+      "startFloating": "Use floating windows", "stopFloating": "Stop floating mode",
+      "floatingHint": "Current session only: existing and new normal windows float. Drag a title to move; Alt + right-drag resizes. No config rewrite. Stopping does not restore the exact old tile layout.",
+      "refresh": "Refresh windows", "checking": "Checking the real i3 session…", "working": "Waiting for Linux…", "connected": "Connected to i3 · window list updates on refresh", "inspectHint": "Refresh to inspect the current guest.",
+      "windowList": "Linux windows", "noWindows": "No managed application windows are open.", "window": "Window", "hidden": "Hidden", "floating": "Floating", "tiling": "Tiling", "hide": "Hide window", "restore": "Show window", "close": "Close Linux window",
+      "closeHint": "Save documents before closing. Hide uses i3 scratchpad; the app keeps running. The top Close button closes this panel only."
+    },
     "learnMore": "Learn more", "storageInfo": "About storage and writes", "save": "Save", "saveUnavailable": "Unavailable: CheerpX 1.4.0 has no verified public durable-flush API.",
     "diskWriteDetails": "Only files, packages and settings committed to browser storage survive reload. Guest writes may finish before that asynchronous commit. Reloading or leaving can lose recent changes; RAM, running processes and unsaved app documents are not preserved. Storage belongs to this browser profile and origin. Do not keep your only copy of important files here.",
     "networkInfo": "About guest networking", "networkDetails": "Tailscale connects only when you choose to. Internet access needs your own account, an external exit node and a suitable tailnet policy. A Tailscale IP or detected exit node does not prove internet access; verify it inside the guest. The desktop starts without guest networking.",

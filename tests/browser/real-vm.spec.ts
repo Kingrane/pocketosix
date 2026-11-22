@@ -133,7 +133,7 @@ async function expectCommittedMarker(page: Page, marker: string) {
 
 async function openMenu(page: Page) {
   if (await page.locator("[data-mode=immersive]").count()) {
-    await page.mouse.move((page.viewportSize()?.width ?? 1440) / 2, 10);
+    await page.getByRole("button", { name: "Show desktop controls", exact: true }).hover();
     await page.getByRole("button", { name: "Open menu", exact: true }).click();
   } else {
     await page.locator("[data-panel-trigger=disk]").focus();
@@ -162,7 +162,7 @@ async function captureShell(page: Page, width: number) {
   await disk.getByRole("button", { name: "Close panel", exact: true }).click();
   await page.getByRole("button", { name: "Immersive", exact: true }).click();
   await expect(page.locator(".app-shell")).toHaveAttribute("data-mode", "immersive");
-  await page.mouse.move(width / 2, 10);
+  await page.getByRole("button", { name: "Show desktop controls", exact: true }).hover();
   await expect(page.locator("[data-desktop-toolbar]")).toHaveCSS("opacity", "1");
   await page.screenshot({ path: test.info().outputPath(`immersive-${width}.png`) });
   await page.getByRole("button", { name: "Exit immersive", exact: true }).click();
@@ -253,6 +253,35 @@ test("real WebDevice exposes its asset directory and reads the wallpaper through
   });
   expect(result.status).toBe(0);
   expect(await guestStatus(page, "pidof i3 >/dev/null")).toBe(0);
+  await expect(page.locator(".linux-canvas")).toHaveCSS("cursor", "none");
+  const displayState = () => page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".linux-canvas")!;
+    return {
+      stage: document.querySelector(".desktop-stage")!.getBoundingClientRect().toJSON(),
+      canvas: canvas.getBoundingClientRect().toJSON(),
+      width: canvas.width, height: canvas.height,
+      bindings: (window as unknown as { __pocketKmsBindings: unknown[] }).__pocketKmsBindings.length,
+    };
+  });
+  const baseline = await displayState();
+  const panelMeasurements: { panel: string; openMilliseconds: number; bindings: number }[] = [];
+  for (const name of ["display", "terminal", "disk", "network", "shortcuts", "logs"]) {
+    const started = performance.now();
+    const trigger = page.locator(`[data-panel-trigger=${name}]`);
+    await expect(trigger).not.toHaveCSS("cursor", "none");
+    await trigger.click();
+    const panel = page.locator("#desktop-panel");
+    await expect(panel).toBeVisible();
+    panelMeasurements.push({ panel: name, openMilliseconds: performance.now() - started, bindings: (await displayState()).bindings });
+    await expect(page.locator("body > textarea[data-pocketosix-kms-input]")).not.toBeFocused();
+    // Include the runtime's resize-settling interval, not just the click frame.
+    await page.waitForTimeout(500);
+    expect(await displayState()).toEqual(baseline);
+    await panel.getByRole("button", { name: "Close panel", exact: true }).click();
+    await page.waitForTimeout(500);
+    expect(await displayState()).toEqual(baseline);
+  }
+  await test.info().attach("real-panel-resize-measurements", { body: JSON.stringify({ source: "Real SDK; browser panels only, not guest application latency", baseline, panels: panelMeasurements }, null, 2), contentType: "application/json" });
   if (process.env.POCKETOSIX_VM_CAPTURE_UI === "1") {
     for (const width of [1440, 390]) await captureShell(page, width);
   }

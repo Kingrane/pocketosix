@@ -34,9 +34,15 @@ export async function observeSDK(context: BrowserContext) {
       import { Linux as RealLinux } from "https://cxrtnc.leaningtech.com/1.4.0/cx.esm.js?pocketosix-diagnostics=1";
       export const Linux = {
         async create(options) {
-          const vm = await RealLinux.create(options);
-          window.__pocketDiagnosticsVM = vm;
-          return vm;
+           const vm = await RealLinux.create(options);
+           window.__pocketDiagnosticsVM = vm;
+           const bindings = window.__pocketKmsBindings = [];
+           const setKmsCanvas = vm.setKmsCanvas;
+           vm.setKmsCanvas = function(canvas, width, height) {
+             bindings.push({ time: performance.now(), width, height });
+             return Reflect.apply(setKmsCanvas, this, [canvas, width, height]);
+           };
+           return vm;
         }
       };
     `,

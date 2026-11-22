@@ -33,8 +33,15 @@ export function getDiskConfig(env: DiskEnvironment = {
 }
 
 export function getDisplaySize(width: number, height: number) {
-  const scale = Math.max(1, 1024 / Math.max(width, 1), 768 / Math.max(height, 1));
-  return { width: Math.floor(Math.max(width, 1) * scale), height: Math.floor(Math.max(height, 1) * scale) };
+  // Use whole CSS pixels, not devicePixelRatio or subpixel layout noise. Keep
+  // the upstream minimum, but bound pathological aspect ratios / huge screens.
+  const viewportWidth = Number.isFinite(width) ? Math.max(1, Math.round(width)) : 1024;
+  const viewportHeight = Number.isFinite(height) ? Math.max(1, Math.round(height)) : 768;
+  const scale = Math.min(Math.max(1, 1024 / viewportWidth, 768 / viewportHeight), 4096 / viewportWidth, 4096 / viewportHeight);
+  return {
+    width: Math.min(4096, Math.max(1024, Math.floor(viewportWidth * scale))),
+    height: Math.min(4096, Math.max(768, Math.floor(viewportHeight * scale))),
+  };
 }
 
 export function validateLoginUrl(value: string): string {
