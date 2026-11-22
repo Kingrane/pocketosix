@@ -1,0 +1,40 @@
+MIT License
+
+Copyright (c) 2026 PocketOSix contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+Scope and third-party notice
+----------------------------
+The MIT grant above covers only original PocketOSix source code and
+documentation contributed under this license. It does not license or
+relicense the CheerpX SDK or runtime, Alpine disk images, Linux packages,
+third-party dependencies, or externally sourced code and assets. Those
+components remain subject to their respective licenses and notices.
+
+CheerpX is proprietary software provided by Leaning Technologies under its
+own license terms. This MIT license grants no right to self-host, modify,
+redistribute, or use CheerpX beyond the permissions of its applicable license.
+Organizational production use requires an appropriate commercial agreement
+with Leaning Technologies. Consult the LICENSE.txt distributed with
+@leaningtech/cheerpx and https://cheerpx.io/docs/licensing.
+
+Code or assets originating from the official WebVM project retain their
+Apache-2.0 license and required attribution. Alpine and its packages retain
+their own licenses and any applicable source-distribution obligations.

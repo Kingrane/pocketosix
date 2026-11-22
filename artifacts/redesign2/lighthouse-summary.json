@@ -1,0 +1,38 @@
+[
+  {
+    "mode": "mobile",
+    "version": "13.6.0",
+    "scores": {
+      "performance": 95,
+      "accessibility": 100,
+      "best-practices": 100,
+      "seo": 100,
+      "agentic-browsing": 100
+    },
+    "metrics": {
+      "first-contentful-paint": "0.9 s",
+      "largest-contentful-paint": "2.9 s",
+      "total-blocking-time": "60 ms",
+      "cumulative-layout-shift": "0.001"
+    },
+    "date": "2026-11-22T12:22:00.301Z"
+  },
+  {
+    "mode": "desktop",
+    "version": "13.6.0",
+    "scores": {
+      "performance": 100,
+      "accessibility": 100,
+      "best-practices": 100,
+      "seo": 100,
+      "agentic-browsing": 100
+    },
+    "metrics": {
+      "first-contentful-paint": "0.3 s",
+      "largest-contentful-paint": "0.6 s",
+      "total-blocking-time": "0 ms",
+      "cumulative-layout-shift": "0.002"
+    },
+    "date": "2026-11-22T12:22:28.296Z"
+  }
+]

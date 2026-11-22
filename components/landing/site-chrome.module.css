@@ -1,0 +1,28 @@
+.header { flex-shrink: 0; }
+.navigation > a:global(.button-primary):hover { color: var(--bg); }
+.docsIcon { display: none; }
+.footer { width: min(1120px, calc(100% - 48px)); margin-inline: auto; padding: 28px 0 36px; border-top: 1px solid var(--border); }
+.footerTop { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.footerBrand { display: inline-flex; text-decoration: none; }
+.footerNav { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; color: var(--muted); font-size: 13px; }
+.footerNav > a { text-decoration: none; }
+.footerNav > a:hover { color: var(--text); }
+.footerBottom { display: flex; justify-content: space-between; align-items: baseline; gap: 32px; margin-top: 24px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.licenseNote { max-width: 660px; }
+.author { flex-shrink: 0; }
+.mobileDialog { width: min(360px, calc(100% - 40px)); margin: auto; padding: 24px; border: 1px solid var(--border-hi); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 16px 64px rgba(0, 0, 0, .35); }
+.mobileDialog::backdrop { background: rgba(0, 0, 0, .65); }
+.mobileDialog p { font-size: 15px; line-height: 1.65; }
+.mobileActions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+@media (max-width: 640px) {
+  .navigation { gap: 12px; }
+  .navDocs { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 8px; }
+  .docsIcon { display: block; }
+  .docsText { display: none; }
+  .footer { width: calc(100% - 40px); padding-bottom: 28px; }
+  .footerTop { align-items: flex-start; flex-direction: column; gap: 24px; }
+  .footerNav { gap: 22px; }
+  .footerBottom { flex-direction: column; gap: 16px; margin-top: 20px; }
+}
+@media (max-width: 380px) { .header :global(.logo-word) { display: none; } }

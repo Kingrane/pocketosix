@@ -1,0 +1,39 @@
+.motion { --landing-motion-ease: cubic-bezier(.22, 1, .36, 1); }
+
+.motion [data-surface="architecture"], .motion [data-surface="notes"], .motion [data-surface="cta"] { position: relative; isolation: isolate; }
+.motion [data-surface="architecture"] { --landing-band-color: #0c0c0d; }
+.motion [data-surface="notes"] { --landing-band-color: #0e0e0e; }
+.motion [data-surface="cta"] { --landing-band-color: #0b0b0c; }
+.motion [data-surface="architecture"]::before, .motion [data-surface="notes"]::before, .motion [data-surface="cta"]::before { position: absolute; z-index: -1; inset: 0; background: radial-gradient(ellipse at 50% 52%, var(--landing-band-color) 0%, transparent 74%); content: ""; pointer-events: none; }
+
+.motion [data-surface="notes"] a:not(:global(.button)) { text-decoration-line: underline; text-decoration-color: var(--subtle); text-underline-offset: .2em; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .motion[data-motion-ready] [data-reveal] { opacity: 1; transform: translateY(0); transition: opacity 380ms var(--landing-motion-ease), transform 380ms var(--landing-motion-ease); }
+  .motion[data-motion-ready] [data-reveal]:not([data-revealed]) { opacity: 0; transform: translateY(6px); }
+  .motion[data-motion-ready] [data-reveal]:nth-child(2) { transition-delay: 35ms; }
+  .motion[data-motion-ready] [data-reveal]:nth-child(3) { transition-delay: 70ms; }
+  .motion[data-motion-ready] [data-reveal]:focus-within { opacity: 1; transform: translateY(0); transition: none; }
+  .motion article[data-reveal] > svg { transition: transform 180ms var(--landing-motion-ease); }
+  .motion [data-surface="architecture"] ol > li { transition: color 180ms ease-out; }
+  .motion [data-surface="architecture"] ol > li::before { transition: background-color 180ms ease-out, transform 180ms var(--landing-motion-ease); }
+  .motion [data-surface="notes"] a:not(:global(.button)) { transition: color 180ms ease-out, text-decoration-color 180ms ease-out; }
+  .motion :global(.button) { transition: background-color 180ms ease-out, color 180ms ease-out, border-color 180ms ease-out, transform 180ms var(--landing-motion-ease); }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .motion [data-surface="architecture"] ol > li:hover { color: var(--accent); }
+  .motion [data-surface="architecture"] ol > li:hover::before { background-color: var(--accent); }
+  .motion [data-surface="notes"] a:not(:global(.button)):hover { color: var(--text); text-decoration-color: var(--accent); }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .motion article[data-reveal]:hover > svg { transform: translateY(-2px); }
+  .motion [data-surface="architecture"] ol > li:hover::before { transform: scale(1.15); }
+  .motion :global(.button):hover:not(:disabled):not([aria-disabled="true"]) { transform: translateY(-1px); }
+  .motion :global(.button):active:not(:disabled):not([aria-disabled="true"]) { transform: scale(.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion [data-reveal] { opacity: 1; transform: none; transition: none; }
+}

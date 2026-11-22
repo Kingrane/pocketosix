@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="pocketosix">
+  <defs>
+    <!-- форма: шестиугольник -->
+    <clipPath id="hex">
+      <path d="M128 16 L225 72 V184 L128 240 L31 184 V72 Z"/>
+    </clipPath>
+
+    <!-- вырезы: промпт ">" и курсор "_" -->
+    <mask id="cut">
+      <rect width="256" height="256" fill="#fff"/>
+      <path d="M58 94 L100 128 L58 162" fill="none" stroke="#000"
+            stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="156" y="180" width="38" height="13" rx="3" fill="#000"/>
+    </mask>
+  </defs>
+
+  <g clip-path="url(#hex)" mask="url(#cut)">
+    <!-- большое окно i3 -->
+    <rect x="0" y="0" width="124" height="256" fill="#748CAB"/>
+    <!-- верхнее правое окно (неактивное) -->
+    <rect x="132" y="0" width="124" height="124" fill="#748CAB" opacity="0.45"/>
+    <!-- нижнее правое окно (активное) -->
+    <rect x="132" y="132" width="124" height="124" fill="#748CAB"/>
+  </g>
+</svg>

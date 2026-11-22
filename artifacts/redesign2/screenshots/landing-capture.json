@@ -1,0 +1,38 @@
+[
+  {
+    "locale": "en",
+    "width": 390,
+    "fit": true,
+    "screenshot": "landing-390.png"
+  },
+  {
+    "locale": "en",
+    "width": 768,
+    "fit": true,
+    "screenshot": "landing-768.png"
+  },
+  {
+    "locale": "en",
+    "width": 1440,
+    "fit": true,
+    "screenshot": "landing-1440.png"
+  },
+  {
+    "locale": "ru",
+    "width": 390,
+    "fit": true,
+    "screenshot": "landing-390-ru.png"
+  },
+  {
+    "locale": "ru",
+    "width": 768,
+    "fit": true,
+    "screenshot": "landing-768-ru.png"
+  },
+  {
+    "locale": "ru",
+    "width": 1440,
+    "fit": true,
+    "screenshot": "landing-1440-ru.png"
+  }
+]

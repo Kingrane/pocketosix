@@ -1,0 +1,32 @@
+[
+  {
+    "path": "lib/webvm.ts",
+    "sha256": "7e5760fba65b1756bac64fc941c44b5498dd060047ed19f2b543f0d3438a66b1",
+    "unchanged": true
+  },
+  {
+    "path": "lib/webvm-config.ts",
+    "sha256": "089f425edc59364846c33da7db429f3cdd2dd5ccd4edfc32935fc40e88ab9233",
+    "unchanged": true
+  },
+  {
+    "path": "lib/webvm-state.ts",
+    "sha256": "9e78929874c3e18e703d3e93b32d7358bcd4276801c9c1e754a5a1ade2eb2674",
+    "unchanged": true
+  },
+  {
+    "path": "hooks/use-linux-desktop.ts",
+    "sha256": "d5ed4a3ea6b6b9058fae10aaeb2ff5f75d8e73d9d131853ca340cf33e2f41b93",
+    "unchanged": true
+  },
+  {
+    "path": "next.config.ts",
+    "sha256": "afacd4f48051e84026377fe347d2193432fa099b3633251ed8e909d90a568caf",
+    "unchanged": true
+  },
+  {
+    "path": "vercel.json",
+    "sha256": "56442a64ac9b1d35f5f11458930a3803579f45713daa7e83c5aab2aabb37508e",
+    "unchanged": true
+  }
+]

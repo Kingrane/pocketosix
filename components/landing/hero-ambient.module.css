@@ -1,0 +1,32 @@
+.ambient { position: absolute; z-index: -1; top: -62px; left: 50%; width: min(1440px, 100vw); height: 620px; transform: translateX(-50%); pointer-events: none; overflow: hidden; contain: layout style; mask-image: linear-gradient(#000 0%, #000 64%, transparent 100%); }
+.definitions { position: absolute; width: 0; height: 0; overflow: hidden; }
+.item { position: absolute; width: var(--size); height: var(--size); opacity: var(--opacity); perspective: 800px; }
+.one { --size: 118px; --opacity: .34; --pitch: 26deg; --yaw: -30deg; --roll: -18deg; --duration: 23s; --delay: -7s; top: 56px; left: 5%; }
+.two { --size: 162px; --opacity: .29; --pitch: 38deg; --yaw: 28deg; --roll: 18deg; --duration: 29s; --delay: -18s; top: 118px; right: 4%; }
+.three { --size: 66px; --opacity: .24; --pitch: -22deg; --yaw: -34deg; --roll: 17deg; --duration: 27s; --delay: -14s; top: 328px; left: 15%; }
+.four { --size: 78px; --opacity: .19; --pitch: 20deg; --yaw: 40deg; --roll: -22deg; --duration: 31s; --delay: -4s; top: 390px; right: 15%; }
+.float { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; animation: drift var(--duration) ease-in-out var(--delay) infinite; animation-play-state: paused; }
+.ambient[data-motion=running] .float { animation-play-state: running; will-change: transform; }
+.face { position: absolute; inset: 0; width: 100%; height: 100%; backface-visibility: hidden; }
+.front { color: #9aadc3; }
+.edge { color: #354559; }
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) rotateX(var(--pitch)) rotateY(var(--yaw)) rotateZ(var(--roll)); }
+  50% { transform: translate3d(8px, -18px, 0) rotateX(calc(var(--pitch) + 6deg)) rotateY(calc(var(--yaw) + 8deg)) rotateZ(calc(var(--roll) - 4deg)); }
+}
+@media (max-width: 900px) {
+  .one { --size: 86px; top: 32px; left: 1%; }
+  .two { --size: 104px; --opacity: .22; top: 172px; right: -1%; }
+  .three { left: 6%; top: 350px; }
+  .four { right: 7%; }
+}
+@media (max-width: 640px) {
+  .ambient { height: 570px; }
+  .one { --size: 66px; --opacity: .25; top: 68px; left: -8px; }
+  .two { --size: 76px; --opacity: .2; top: 304px; right: -18px; }
+  .three { --size: 44px; --opacity: .18; left: 6%; top: 388px; }
+  .four { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .float { animation: none; transform: rotateX(var(--pitch)) rotateY(var(--yaw)) rotateZ(var(--roll)); will-change: auto !important; }
+}

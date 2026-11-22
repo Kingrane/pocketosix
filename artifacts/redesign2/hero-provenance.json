@@ -1,0 +1,16 @@
+{
+  "file": "public/hero-desktop.png",
+  "width": 1920,
+  "height": 1200,
+  "sha256": "d440c398adced23e736382bda6c1afbf1752f116a51fb18720cb6b6152e999df",
+  "identicalToInspectedRawFramebuffer": true,
+  "source": "real CheerpX / Alpine / Xorg / i3, isolated Playwright profile",
+  "commands": [
+    "uname -a",
+    "cat /etc/alpine-release"
+  ],
+  "limitations": [
+    "Second terminal tile is blank; its shell readiness is not confirmed.",
+    "Tiled windows cover the selected wallpaper."
+  ]
+}

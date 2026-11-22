@@ -1,0 +1,215 @@
+{
+  "metadata": {
+    "description": "A real Alpine desktop in your browser. Xorg and i3, running locally on your device with CheerpX and a persistent browser disk.",
+    "runDescription": "Start real Alpine userspace, Xorg and i3 on your device through CheerpX.",
+    "ogLocale": "en_US"
+  },
+  "common": {
+    "home": "pocketosix — home", "skip": "Skip to content", "docs": "Docs", "github": "GitHub", "launch": "Launch", "language": "Choose language", "close": "Close", "cancel": "Cancel", "license": "License", "author": "Made by Kingrane", "mobileNotice": "PocketOSix works best on desktop with a keyboard."
+  },
+  "landing": {
+    "navigation": "Main navigation",
+    "footerNavigation": "Footer navigation",
+    "hero": {
+      "title": "Linux in a browser tab.",
+      "description": "A real Alpine desktop — Xorg and i3 — running locally on your device. No install, no account.",
+      "caption": "Powered by CheerpX · Your disk stays in your browser",
+      "imageAlt": "A real Alpine desktop with Xorg and i3: system information in one terminal and a second empty terminal tile.",
+      "mediaPendingTitle": "A real desktop preview is on the way.",
+      "mediaPendingDescription": "This space is reserved for a capture of the running Alpine desktop, not a simulated interface."
+    },
+    "features": {
+      "label": "What PocketOSix offers",
+      "userspace": {
+        "title": "Real Alpine userspace",
+        "description": "Shell, coreutils and apk packages. Not a scripted demo."
+      },
+      "disk": {
+        "title": "Persistent local disk",
+        "description": "Disk changes committed to browser storage stay between sessions."
+      },
+      "compute": {
+        "title": "Runs on your device",
+        "description": "Compute happens locally via WebAssembly, without a compute server."
+      }
+    },
+    "architecture": {
+      "title": "How it works",
+      "nodes": { "browser": "Browser", "cheerpx": "CheerpX", "alpine": "Alpine", "desktop": "Xorg + i3", "canvas": "Canvas" },
+      "translation": "x86 → wasm",
+      "description": "Next.js renders the shell. CheerpX runs guest programs locally in your browser."
+    },
+    "notes": {
+      "title": "Good to know",
+      "compatibility": {
+        "title": "No Linux kernel",
+        "description": "CheerpX provides syscall compatibility for 32-bit x86 userspace. Not Docker, systemd or a full hardware VM. Some syscalls and apps may not work."
+      },
+      "storage": {
+        "title": "Local, not immortal",
+        "description": "Files stay in this browser profile, on this site. Clearing site data or browser storage eviction can delete them. Running processes do not survive a reload."
+      },
+      "network": {
+        "title": "Networking is optional",
+        "description": "The desktop starts without guest networking. Internet access requires your own Tailscale account, an exit node and a suitable tailnet policy. Runtime and the base disk are delivered by external CDNs."
+      }
+    },
+    "finalCta": "Open your desktop.",
+    "licenseNote": "MIT covers the original PocketOSix code. CheerpX is proprietary; Alpine and its packages have separate licenses."
+  },
+  "run": {
+    "navigation": "Navigation", "home": "Home", "controls": "Desktop controls",
+    "skipDesktop": "Skip to desktop", "desktopTitle": "Linux desktop", "canvasLabel": "Alpine Linux / i3. Click the desktop for keyboard input.", "canvasFallback": "Canvas and WebAssembly are required.",
+    "running": "Running", "openMenu": "Open menu", "menuTitle": "Desktop menu",
+    "fullscreen": "Fullscreen", "exitFullscreen": "Exit fullscreen", "fullscreenUnavailable": "Fullscreen is unavailable in this browser.", "fullscreenDenied": "The browser did not allow fullscreen. Continue in the window.",
+    "openDesktop": "Open your desktop.", "openDescription": "A real Alpine desktop, with Xorg and i3. Running on your device.", "boot": "> boot", "bootDownload": "Downloads from external CDNs begin. Your existing disk stays intact.",
+    "starting": "Starting Alpine…", "bootStages": "Startup stages", "elapsed": "Elapsed", "seconds": "s", "bootSlow": "Startup is taking longer than expected. Check the logs and access to the runtime and disk CDNs.",
+    "steps": { "checking": "Checking browser", "engine": "Loading runtime", "disk": "Mounting disk", "starting": "Starting Xorg & i3" },
+    "limitation": "No Linux kernel — syscall compatibility only.", "dismissLimitation": "Dismiss compatibility note",
+    "readingCapabilities": "Checking browser capabilities…", "preflightTitle": "This browser needs a change.", "fixCapabilities": "Resolve these checks before starting Alpine.",
+    "capabilities": {
+      "secure": { "label": "Secure context", "hint": "Open this page over HTTPS, or use localhost." },
+      "isolation": { "label": "Cross-origin isolation", "hint": "The page needs COOP and COEP headers. Check your deployment and reload." },
+      "shared": { "label": "SharedArrayBuffer", "hint": "Use a browser with SharedArrayBuffer and cross-origin isolation enabled." },
+      "wasm": { "label": "WebAssembly", "hint": "Enable WebAssembly or use a supported desktop browser." },
+      "indexeddb": { "label": "IndexedDB", "hint": "Allow this site to store local data in your browser." },
+      "locks": { "label": "Exclusive Web Locks", "hint": "Use a browser with Web Locks so only one tab can write to your disk." }
+    },
+    "errors": {
+      "isolation": { "title": "Browser isolation is required.", "message": "Check the deployment’s COOP and COEP headers, then reload. Your disk has not been reset." },
+      "unsupported": { "title": "This browser is not supported.", "message": "Alpine needs WebAssembly, SharedArrayBuffer, IndexedDB, and exclusive Web Locks in a secure context. Try a supported desktop browser." },
+      "locked": { "title": "Your disk is open in another tab.", "message": "Close the other PocketOSix tab using this disk, then reload. A second writer is blocked to protect your files." },
+      "disk": { "title": "The Linux disk could not be mounted.", "message": "Check access to the disk CDN and browser storage. Extensions or network policies may block it. Your files have not been reset." },
+      "runtime": { "title": "Alpine could not start.", "message": "Check access to the official runtime and disk CDNs. Extensions, a VPN, or network policies may block downloads. Your files have not been reset." }
+    },
+    "technicalDetails": "Technical details", "retry": "Reload and try again", "showLogs": "Show logs", "logsTitle": "Logs", "logsDescription": "Actual runtime output. Technical messages may use the runtime’s original language.",
+    "displayTitle": "Display", "scaleTitle": "Display scaling", "fit": "Fit", "native": "Native", "pointerLock": "Lock pointer", "pointerLockHint": "Captures the pointer in the guest. Press Escape to release it.", "pointerLockUnavailable": "Pointer lock is unavailable in this browser.", "pointerLockDenied": "The browser did not allow pointer lock.", "afterBoot": "Available after the desktop starts.",
+    "terminalTitle": "Terminal", "terminalDescription": "A real tty1 console, separate from the i3 terminal. Use it for a shell or diagnostics.", "openTerminal": "Open terminal", "returnTerminal": "Return to terminal", "consoleUnavailable": "The guest console is not connected yet.",
+    "terminalRegion": "Guest terminal tty1", "terminalHeading": "Terminal · tty1", "terminalLogin": "Real tty1 · log in as user (factory password: password). Guest size: 100×30.", "terminalSize": "Terminal size", "clearTerminal": "Clear terminal screen", "copySelection": "Copy selection", "selectToCopy": "Select terminal text to copy.", "changeDock": "Change terminal dock", "mobileDock": "On narrow screens the terminal docks below.", "expandTerminal": "Expand terminal", "restoreTerminal": "Restore terminal", "closeTerminal": "Close terminal", "terminalLoading": "The terminal is loading.", "terminalError": "The guest terminal could not open.", "clipboardDenied": "Clipboard access was denied. Use your browser’s copy command.",
+    "diskTitle": "Disk", "diskDescription": "Files, packages and settings are written automatically to this browser. Writes are asynchronous: reloading during a write can lose recent changes. Running processes are not saved.", "originUsage": "Entire origin usage", "quota": "Origin quota", "protection": "Storage protection", "granted": "Granted", "notGranted": "Not granted", "unavailable": "Unavailable", "units": { "bytes": "B", "kib": "KiB", "mib": "MiB", "gib": "GiB" },
+    "requesting": "Requesting…", "storageProtected": "Storage protection granted", "protectStorage": "Request storage protection", "storageUnavailable": "The browser has not provided storage information. Protection cannot be requested here yet.", "protectionGranted": "Protection was granted. Site data can still be deleted manually. Files belong to this browser profile and origin.", "storageLimits": "Usage and quota cover the entire origin, not just this disk. The browser may deny protection or evict data under storage pressure. A different profile or origin has a different disk.", "protectionDenied": "The browser declined storage protection. Your disk is still saved, but may be evicted under storage pressure.",
+    "restart": "Restart", "restartTitle": "Restart Alpine?", "restartDescription": "Reload ends the current processes. Files remain on your disk. Save open documents and wait for writes to finish first.", "restartNextBoot": "The page will return to the start screen. Choose > boot to start a new session.",
+    "resetDisk": "Reset disk", "resetUnavailable": "Disk reset is available after the desktop starts.", "resetTitle": "Start with a clean disk?", "resetDescription": "All files, settings and installed packages on this disk will be permanently deleted. This cannot be undone.", "resetNextBoot": "The page reloads first. Choose > boot again to clear only this disk’s overlay before Alpine starts. Other site data is not cleared.", "resetConfirmation": "Type pocketosix to confirm", "keepDisk": "Keep my disk", "deleteDisk": "Delete disk data", "resetPending": "Preparing reset…",
+    "networkTitle": "Network", "tailscale": "Tailscale", "ip": "IP", "exitNode": "Exit node", "exitDetected": "Detected; verify access", "exitNotDetected": "Not detected", "networkDescription": "Networking is optional. Internet access needs your own Tailscale account, an external exit node and a suitable tailnet policy. An IP alone does not prove internet access.",
+    "networkStates": { "disconnected": "Off", "connecting": "Connecting", "login": "Sign-in required", "connected": "Connected to tailnet", "error": "Connection failed" },
+    "continueLogin": "Continue Tailscale sign-in", "connectTailscale": "Connect Tailscale", "connecting": "Connecting…", "loginPending": "Waiting for Tailscale. Use the sign-in window when it opens.", "disconnectHint": "SDK disconnect is not verified. Restart to end this session; the new session will not connect automatically.", "exitGuide": "Set up an exit node", "networkError": "Tailscale could not connect. Check the technical details and your tailnet settings.",
+    "shortcutsTitle": "Keyboard shortcuts", "inputHint": "Click the guest desktop before typing. While a browser dialog is open, input stays in the browser.", "modifier": "i3 modifier: Mod1 = Alt",
+    "shortcuts": {
+      "terminal": { "keys": "Alt + Enter", "description": "Open a terminal in i3" },
+      "launcher": { "keys": "Alt + d", "description": "Open the application launcher" },
+      "workspaces": { "keys": "Alt + 1…9", "description": "Switch i3 workspaces" },
+      "close": { "keys": "Alt + Shift + q", "description": "Close the guest window" }
+    },
+    "languageTitle": "Language", "gettingStarted": "Getting started", "firstUse": "Wait for the guest bar, open Apps → Terminal, then wait for the shell prompt.", "firstUseTerminal": "is the configured terminal shortcut;", "firstUseLauncher": "opens apps.", "dismissHelp": "Dismiss getting-started help", "dismissMessage": "Dismiss message", "operationError": "The action could not finish. Check the technical details. Your disk has not been reset automatically."
+  },
+  "docs": {
+    "intro": "Get started with your Alpine desktop, learn the controls, and understand how files and networking work.",
+    "contents": "On this page",
+    "topics": {
+      "start": "Quick start",
+      "keyboard": "Keyboard and terminal",
+      "storage": "Files and storage",
+      "network": "Networking",
+      "limits": "Compatibility",
+      "license": "License"
+    },
+    "start": {
+      "intro": "No installation or account is needed to open the desktop. Your browser needs internet access to download CheerpX and the base image.",
+      "launch": {
+        "title": "Launch the desktop",
+        "detail": "Select Launch to open /run, then choose > boot to start Alpine. Wait for the desktop to appear. The first boot may take a while; the logs show real activity, not a percentage estimate."
+      },
+      "focus": {
+        "title": "Click inside the desktop",
+        "detail": "Click the guest display so keyboard input goes to Xorg and i3. After using a browser menu or dialog, close it and click the display again."
+      },
+      "terminal": {
+        "title": "Open your first app",
+        "detail": "Click Apps on the guest bar, then Terminal, and wait for the shell prompt before typing. Alt + Enter is also configured to launch a terminal; some browser or OS shortcuts may interfere. Alt + d opens the rofi app launcher. A desktop without open windows is not a loading screen."
+      }
+    },
+    "keyboard": {
+      "intro": "The base image uses Alt as the i3 modifier (Mod1), not Super. If you edit the i3 configuration in the guest, your own bindings apply.",
+      "tableCaption": "More shortcuts from the base image's i3 configuration",
+      "keys": "Keys",
+      "action": "Action",
+      "shortcuts": {
+        "focus": { "keys": "Alt + ← / ↓ / ↑ / →", "action": "Focus another window" },
+        "move": { "keys": "Alt + Shift + ← / ↓ / ↑ / →", "action": "Move the focused window" },
+        "split": { "keys": "Alt + h / v", "action": "Split horizontally / vertically" },
+        "fullscreen": { "keys": "Alt + f", "action": "Toggle fullscreen for the i3 window, not the browser" },
+        "close": { "keys": "Alt + Shift + q", "action": "Close the focused window" },
+        "floating": { "keys": "Alt + Shift + Space", "action": "Toggle floating / tiling" },
+        "resize": { "keys": "Alt + r", "action": "Enter resize mode; Enter or Escape to leave" }
+      },
+      "caveat": "Your operating system or browser may intercept shortcuts, even in fullscreen. If nothing happens, first check that the guest display has focus.",
+      "ttyTitle": "The browser terminal (tty1)",
+      "tty": "The browser terminal connects to the guest's real tty1, separate from an i3 terminal window. At the login prompt, the factory username is user and the factory password is password, unless you changed them. These are public image defaults, not personal secrets. There is no automatic login; boot output does not mean a shell is ready.",
+      "inputTitle": "Clipboard and mobile input",
+      "input": "Pasting from the browser clipboard directly into the guest display and sending keys from a mobile soft-key panel are not currently supported. Copying text in the browser does not send it to the guest. A desktop keyboard is recommended.",
+      "source": "View the i3 configuration"
+    },
+    "storage": {
+      "intro": "Changes to the root disk are stored locally in IndexedDB as an overlay on the base Alpine image. This saves disk changes, not a snapshot of the running desktop.",
+      "facts": {
+        "saved": { "title": "What stays", "detail": "Files, installed packages and settings committed to browser storage remain after a page reload. Guest writes can finish before the asynchronous browser commit; an immediate reload may lose recent changes." },
+        "session": { "title": "What restarts", "detail": "RAM, running processes, and terminal sessions do not survive reload. Unsaved work in an app is not a saved file." },
+        "location": { "title": "Where files live", "detail": "Storage belongs to one browser profile and one origin (scheme, host, and port). Another profile, device, preview URL, or port has a separate disk. Clearing site data deletes the local changes." },
+        "quota": { "title": "Storage limits", "detail": "Browser quotas limit space, and the browser may evict data. Storage usage is an estimate for the whole origin, not the exact size of the guest disk." }
+      },
+      "persistTitle": "Request persistent storage",
+      "persist": "The disk controls on /run can ask the browser to protect storage from automatic eviction. The browser may grant or deny the request. A grant does not prevent manual site-data deletion, replace a backup, or guarantee offline use.",
+      "lockTitle": "One tab at a time",
+      "lock": "Only one tab can write to a disk. If another tab has the disk open, close it before launching again. Do not clear storage or bypass the lock to fix a startup error.",
+      "resetTitle": "Resetting the disk",
+      "reset": "Reset requires explicit confirmation in the disk controls. It stops the old session through a page reload and deletes only the selected overlay before the next boot. Your files, packages, and settings are lost, with no undo. If deletion is blocked, close the other tab.",
+      "transferTitle": "Full disk export and import are not available",
+      "transfer": "The shell does not currently support exporting or restoring a complete overlay, exporting RAM, or moving a running session. Do not keep the only copy of important files here."
+    },
+    "network": {
+      "intro": "Tailscale is optional and connects only when you choose to. The desktop can start without guest networking; your browser's connection for downloading the runtime and image is separate.",
+      "steps": {
+        "account": { "title": "Use your own Tailscale account", "detail": "Open the network controls on /run and start connecting. Sign in on the official Tailscale website and approve the device in your own tailnet." },
+        "exit": { "title": "Set up an external exit node", "detail": "Guest access to the public internet requires your own configured and approved exit node and a suitable tailnet policy. This can be another computer or a VPS. PocketOSix does not provide a shared exit node." },
+        "check": { "title": "Check access inside the guest", "detail": "Use curl or wget if installed. Access depends on your tailnet policy and exit node availability. A Tailscale IP alone does not prove internet access, and ping is not a sufficient check." }
+      },
+      "securityTitle": "Keep your network and credentials safe",
+      "security": "Connecting may give the guest access to your private network. Connect only an environment you trust. Never put auth keys, tokens, or passwords in code, URLs, logs, or NEXT_PUBLIC_* variables: those variables are public.",
+      "source": "Tailscale exit node setup"
+    },
+    "limits": {
+      "compatibility": { "title": "Supported userspace", "detail": "CheerpX runs supported 32-bit x86 Linux userspace via WebAssembly and syscall compatibility. There is no Linux kernel. This is not Docker, systemd, or a full hardware VM; some syscalls and applications are unsupported, including 64-bit binaries." },
+      "dependencies": { "title": "External downloads", "detail": "Compute runs on your device, but the CheerpX runtime and base disk come from external services. Uncached resources need internet access; fully offline use is not guaranteed." },
+      "browser": { "title": "Browser requirements", "detail": "Use a current desktop Chrome or Edge with WebAssembly, SharedArrayBuffer, IndexedDB, and Web Locks. Other browsers and mobile devices are not claimed as verified." },
+      "accessibility": { "title": "Guest accessibility", "detail": "The web shell has keyboard-accessible controls. This does not imply full screen reader access to the guest Xorg display." },
+      "isolation": "Startup requires HTTPS or localhost and cross-origin isolation. If the browser check fails on /run, follow its fix hint. Hosting must preserve COOP / COEP; disabling COEP is not a fix for a CDN error."
+    },
+    "license": {
+      "original": "PocketOSix's original code and documentation are MIT-licensed.",
+      "sdk": "The CheerpX SDK and runtime are proprietary, not MIT. Organizational production use requires an appropriate commercial agreement with Leaning Technologies. The PocketOSix license does not permit copying or self-hosting the runtime.",
+      "packages": "Alpine and third-party packages have their own licenses. Reused WebVM code and assets retain their Apache-2.0 notices and attribution.",
+      "source": "CheerpX licensing terms"
+    },
+    "sources": {
+      "title": "Official references",
+      "cheerpx": "CheerpX documentation",
+      "alpine": "Alpine image",
+      "webvm": "WebVM"
+    }
+  },
+  "utility": {
+    "notFound": {
+      "code": "404",
+      "title": "Page not found.",
+      "detail": "This address does not exist. Return to the home page or open the docs for help getting started.",
+      "home": "Back to home"
+    },
+    "tailscale": {
+      "title": "Waiting for Tailscale sign-in.",
+      "detail": "When Tailscale responds, the original tab will open the sign-in page here. This screen does not connect the network by itself.",
+      "security": "Do not enter passwords or keys here. Sign-in takes place on the official Tailscale website.",
+      "hint": "If nothing opens, check the network status in the original /run tab. Guest access to the public internet also requires an external exit node and a suitable tailnet policy.",
+      "docs": "Networking guide"
+    }
+  }
+}
