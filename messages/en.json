@@ -75,7 +75,7 @@
       "description": "Real Linux apps, without browser-intercepted Alt shortcuts.",
       "apps": { "launcher": "All applications", "terminal": "Linux terminal", "files": "Files · Thunar", "lightweight-files": "Files · PCManFM" },
       "startFloating": "Use floating windows", "stopFloating": "Stop floating mode",
-      "floatingHint": "Current session only: existing and new normal windows float. Drag a title to move; Alt + right-drag resizes. No config rewrite. Stopping does not restore the exact old tile layout.",
+      "floatingHint": "One enable attempt after the first frame. Current session only: existing and new normal windows float. Drag a title to move; Alt + right-drag resizes. No config rewrite. Stopping does not restore the exact old tile layout.",
       "refresh": "Refresh windows", "checking": "Checking the real i3 session…", "working": "Waiting for Linux…", "connected": "Connected to i3 · window list updates on refresh", "inspectHint": "Refresh to inspect the current guest.",
       "windowList": "Linux windows", "noWindows": "No managed application windows are open.", "window": "Window", "hidden": "Hidden", "floating": "Floating", "tiling": "Tiling", "hide": "Hide window", "restore": "Show window", "close": "Close Linux window",
       "closeHint": "Save documents before closing. Hide uses i3 scratchpad; the app keeps running. The top Close button closes this panel only."

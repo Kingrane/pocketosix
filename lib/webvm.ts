@@ -104,7 +104,8 @@ class WebVMController {
           if (message.state === "enabled") { this.updateGuest({ floating: "on" }); this.floatingReady?.(); }
           else if (message.state === "disabled") this.floatingDisabled = true;
           else if (message.state === "error") {
-            const error = new Error("i3 не смог переключить или восстановить плавающие окна.");
+            const category = ["RuntimeError", "OSError", "ValueError", "KeyError", "TimeoutExpired"].includes(message.errorType) ? ` (${message.errorType})` : "";
+            const error = new Error(`i3 не смог переключить или восстановить плавающие окна${category}.`);
             this.updateGuest({ error: error.message }); this.floatingReady?.(error);
           }
         }
@@ -116,10 +117,10 @@ class WebVMController {
     }
   }
 
-  private async guestDeadline<T>(task: Promise<T>, message: string) {
+  private async guestDeadline<T>(task: Promise<T>, message: string, milliseconds = 20000) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      return await Promise.race([task, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(message)), 20000); })]);
+      return await Promise.race([task, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error(message)), milliseconds); })]);
     } finally { clearTimeout(timer); }
   }
 
@@ -134,7 +135,9 @@ class WebVMController {
       if (this.active(token) && this.snapshot.guestDesktop.pending === "stalled") this.updateGuest({ pending: null });
     };
     void task.then(settled, settled);
-    const { status } = await this.guestDeadline(task, "Гостевая команда не завершилась за 20 секунд. Повтор заблокирован до её завершения; при необходимости перезагрузите вкладку.");
+    // Discovery also loads Python/i3 code from the remote image for the first time.
+    const seconds = command.completion === "probe-exit" ? 90 : 20;
+    const { status } = await this.guestDeadline(task, `Гостевая команда не завершилась за ${seconds} секунд. Повтор заблокирован до её завершения; при необходимости перезагрузите вкладку.`, seconds * 1000);
     this.check(token);
     if (status !== 0) throw new Error(`Гостевая команда ${command.fileName} завершилась с кодом ${status}.`);
   }
@@ -146,7 +149,8 @@ class WebVMController {
     // a pending response while run() still belongs to the old guest lifetime.
     void response.catch(() => {});
     try {
-      const [, message] = await this.guestDeadline(Promise.all([this.runGuest(command, token), response]), "Не получен ответ текущей i3-сессии за 20 секунд. Откройте логи или перезапустите сессию.");
+      const seconds = command.completion === "probe-exit" ? 90 : 20;
+      const [, message] = await this.guestDeadline(Promise.all([this.runGuest(command, token), response]), `Не получен ответ текущей i3-сессии за ${seconds} секунд. Откройте логи или перезапустите сессию.`, seconds * 1000);
       this.check(token);
       return message;
     } finally {
@@ -226,7 +230,24 @@ class WebVMController {
     if (!window) throw new Error("Это окно уже закрыто или изменилось. Обновите список окон.");
     if (action === "restore" && !window.hidden) throw new Error("Окно уже видно; повторный scratchpad show снова скрыл бы его.");
     await this.runGuest(guestWindowCommand(session, target, action), token);
-    await this.readGuestWindows(token);
+    let after = await this.readGuestWindows(token);
+    // WM_DELETE is asynchronous. An ACK must not announce a closed window while
+    // the client is still alive; wait without sending another kill request.
+    if (action === "close") {
+      const started = performance.now();
+      while (after.some(window => window.windowId === target.windowId && window.containerId === target.containerId)) {
+        if (performance.now() - started >= 10000) throw new Error("i3 принял закрытие, но окно ещё открыто. Проверьте диалог сохранения в госте; повторное закрытие не отправлено.");
+        await new Promise(resolve => setTimeout(resolve, 500));
+        this.check(token);
+        after = await this.readGuestWindows(token);
+      }
+    }
+  });
+
+  enableGuestFloating = () => this.guestAction("floating", async token => {
+    if (this.floatingTask || this.floatingToken) return;
+    const session = await this.prepareGuest(token);
+    await this.startGuestFloating(session, token);
   });
 
   toggleGuestFloating = () => this.guestAction("floating", async token => {
@@ -240,6 +261,11 @@ class WebVMController {
       await this.readGuestWindows(token);
       return;
     }
+    await this.startGuestFloating(session, token);
+  });
+
+  private async startGuestFloating(session: GuestDesktopSession, token: number) {
+    if (this.floatingTask || this.floatingToken) return;
     if (!this.vm) throw new BootCancelled();
     this.floatingToken = crypto.randomUUID();
     this.floatingDisabled = false;
@@ -267,7 +293,7 @@ class WebVMController {
     try { await Promise.race([ready, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Floating ещё не подтверждён гостем. Проверьте логи; повторный подписчик не запускается.")), 20000); })]); }
     finally { clearTimeout(timer); this.floatingReady = null; }
     await this.readGuestWindows(token);
-  });
+  }
 
   attach(canvas: HTMLCanvasElement, consoleElement: HTMLPreElement) {
     if (this.teardown) clearTimeout(this.teardown);
@@ -551,6 +577,8 @@ class WebVMController {
           this.frameTimer = null;
           if (this.slowTimer) clearTimeout(this.slowTimer);
           this.update({ phase: "ready", bootSlow: false, bootMilliseconds: performance.now() - this.bootStarted });
+          // One attempt per real first frame; no timer retry or i3 config rewrite.
+          void this.enableGuestFloating();
           // Readiness must not steal focus from tty1 or browser controls.
           // KMS focus and input remain owned by the SDK and the user's click.
           return;

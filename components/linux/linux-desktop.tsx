@@ -16,6 +16,13 @@ import { GuestTerminal } from "./guest-terminal";
 import styles from "./desktop-shell.module.css";
 import type { GuestApp } from "@/lib/guest-desktop";
 
+function GuestNotice({ error, onInspect }: { error: string | null; onInspect: () => void }) {
+  const { t } = useLanguage();
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return <div className={styles.notification} role={error ? "alert" : "status"} data-guest-notice><span>{error || t("run.guest.working")}</span><button type="button" className="icon-button" aria-label={t("run.appsTitle")} onClick={onInspect}><Search size={16} aria-hidden="true" /></button><button type="button" className="icon-button" aria-label={t("run.dismissMessage")} onClick={() => setDismissed(true)}><X size={16} aria-hidden="true" /></button></div>;
+}
+
 export function LinuxDesktop() {
   const { snapshot, canvasRef, consoleRef, actions } = useLinuxDesktop();
   useKmsInput(canvasRef);
@@ -226,6 +233,7 @@ export function LinuxDesktop() {
   }
   const effectiveDock = compact ? "bottom" : dock;
   const operationError = snapshot.operationError && snapshot.operationError !== operationDismissed;
+  const guestNotice = snapshot.guestDesktop.error || snapshot.guestDesktop.pending;
   const ready = snapshot.phase === "ready";
   const menuPanels = DESKTOP_PANELS.filter((name) => t(`run.panels.${name}`).toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   return <div className={`app-shell ${styles.shell} ${mode === "immersive" ? styles.immersive : ""}`} data-mode={mode} data-vm-phase={snapshot.phase} onPointerDownCapture={cancelFocus}>
@@ -254,8 +262,7 @@ export function LinuxDesktop() {
     </main>
     {mode === "immersive" && <DesktopToolbar snapshot={snapshot} open={Boolean(dialog || panel)} onExitImmersive={() => void toggleImmersive()} onGuestFocus={() => canvasRef.current?.focus({ preventScroll: true })} onPanel={openPanel} onDialog={openDialog} />}
     {immersiveHint && !dialog && !panel && <div className={styles.immersiveHint} role="status">{t("run.immersiveHint")}</div>}
-    {snapshot.guestDesktop.pending && !dialog && !panel && <div className={styles.notification} role="status">{t("run.guest.working")}</div>}
-    {snapshot.guestDesktop.error && !dialog && !panel && <div className={styles.notification} role="alert"><span>{snapshot.guestDesktop.error}</span><button type="button" className="icon-button" aria-label={t("run.appsTitle")} onClick={() => openPanel("apps")}><Search size={16} aria-hidden="true" /></button></div>}
+    {guestNotice && <div hidden={Boolean(dialog || panel)}><GuestNotice key={guestNotice} error={snapshot.guestDesktop.error} onInspect={() => openPanel("apps")} /></div>}
     {(uiError || operationError) && !dialog && <div className={styles.notification} role="alert"><div><span>{t(uiError ?? "run.operationError")}</span>{operationError && <details className={styles.technical}><summary>{t("run.technicalDetails")}</summary><pre>{snapshot.operationError}</pre></details>}</div><button className="icon-button" aria-label={t("run.dismissMessage")} onClick={() => { setUiError(null); setOperationDismissed(snapshot.operationError); actions.clearOperationError(); }}><X size={16} aria-hidden="true" /></button></div>}
     {(dialog === "menu" || dialog === "palette") && <DesktopModal key={dialog} title={t(dialog === "palette" ? "run.commandPalette" : "run.menuTitle")} onClose={closeDialog}>
       {dialog === "palette" && <label className={styles.commandSearch}><Search size={16} aria-hidden="true" /><input autoFocus data-autofocus value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t("run.searchActions")} placeholder={t("run.searchActions")} /></label>}

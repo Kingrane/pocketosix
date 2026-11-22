@@ -10,7 +10,7 @@ import {
 // Synthetic inputs for pure command construction, not a discovered live session
 // or evidence of Linux.run / an i3 acknowledgement succeeding.
 const SESSION: GuestDesktopSession = { uid: 1000, gid: 1000, socketPath: "/tmp/i3-unit/ipc-socket.529" };
-const TARGET = { containerId: 4294967297, windowId: 2097153 };
+const TARGET = { containerId: 1001, windowId: 2097153 };
 const OPTIONS = { uid: 1000, gid: 1000, cwd: "/" };
 
 test("i3 queries use explicit socket arguments and the verified non-root identity", () => {
@@ -72,7 +72,7 @@ test("window actions require both the fresh i3 container ID and X11 window ID", 
   for (const action of Object.keys(commands) as GuestWindowAction[]) {
     assert.deepEqual(guestWindowCommand(SESSION, TARGET, action), {
       fileName: "/usr/bin/i3-msg",
-      args: ["-s", SESSION.socketPath, `[con_id=4294967297 id=2097153] ${commands[action]}`],
+      args: ["-s", SESSION.socketPath, `[con_id=1001 id=2097153] ${commands[action]}`],
       options: OPTIONS, completion: "ipc-ack",
     });
   }
@@ -83,10 +83,10 @@ test("window actions require both the fresh i3 container ID and X11 window ID", 
 });
 
 test("floating existing windows uses bounded dual-ID selectors and rejects an empty target list", () => {
-  const other = { containerId: 4294967298, windowId: 2097154 };
+  const other = { containerId: 1002, windowId: 2097154 };
   assert.deepEqual(guestFloatExistingWindows(SESSION, [TARGET, other]), {
     fileName: "/usr/bin/i3-msg",
-    args: ["-s", SESSION.socketPath, "[con_id=4294967297 id=2097153] floating enable; [con_id=4294967298 id=2097154] floating enable"],
+    args: ["-s", SESSION.socketPath, "[con_id=1001 id=2097153] floating enable; [con_id=1002 id=2097154] floating enable"],
     options: OPTIONS, completion: "ipc-ack",
   });
   assert.throws(() => guestFloatExistingWindows(SESSION, []), /Нет подтверждённых окон/);
@@ -112,6 +112,48 @@ test("floating subscriber start and stop share the exact validated tick token", 
     assert.throws(() => guestStartFloatingSubscriber(SESSION, token), /Некорректный token/);
     assert.throws(() => guestStopFloatingSubscriber(SESSION, token), /Некорректный token/);
   }
+});
+
+test("floating failure reports a fixed category instead of leaking exception arguments", () => {
+  const script = guestStartFloatingSubscriber(SESSION, "unit-token_123").args[2];
+  assert.match(script, /errorType=type\(error\)\.__name__/);
+  assert.match(script, /errorCode=reasons\.get\(str\(error\), "unknown"\)/);
+  assert.match(script, /"i3 rejected command": "command-rejected"/);
+  assert.doesNotMatch(script, /emit\("error"[^\n]*error=str\(error\)/);
+});
+
+test("unrepresentable 32-bit container pointers use a guarded mark, never signed criteria", () => {
+  const high = { containerId: 2937926608, windowId: 14680076 };
+  const command = guestWindowCommand(SESSION, high, "floating");
+  assert.equal(command.fileName, "/usr/bin/python3");
+  assert.deepEqual(command.args.slice(3), [SESSION.socketPath, "[[2937926608,14680076]]", "floating enable"]);
+  assert.deepEqual(command.options, OPTIONS);
+  assert.equal(command.completion, "ipc-ack");
+  assert.deepEqual(guestFloatExistingWindows(SESSION, [high]).args, command.args);
+  for (const containerId of [0, -1, 0x100000000, Number.MAX_SAFE_INTEGER]) {
+    assert.throws(() => guestWindowCommand(SESSION, { ...high, containerId }, "close"), /container\/window ID/);
+  }
+  // i3's actual parse_long rejects LONG_MAX and every negative value as well.
+  for (const windowId of [0x7fffffff, 0x80000000, 0xffffffff, 0x100000000]) {
+    assert.throws(() => guestWindowCommand(SESSION, { ...high, windowId }, "hide"), /container\/window ID/);
+  }
+  for (const containerId of [0x7fffffff, 0x80000000, 0xffffffff]) {
+    assert.equal(guestWindowCommand(SESSION, { ...high, containerId }, "floating").fileName, "/usr/bin/python3");
+  }
+});
+
+test("subscriber and finite controls share the dual-ID mark guard and preserve user marks", () => {
+  const script = guestStartFloatingSubscriber(SESSION, "unit-token_123").args[2];
+  assert.match(script, /not 0 < container <= 0xffffffff or not 0 < xid < 0x7fffffff/);
+  assert.match(script, /command\("\[id=%d\] mark --add %s" % \(xid, mark\)\)/);
+  assert.match(script, /if len\(marked\) != 1 or key\(marked\[0\]\) != target:\s+raise RuntimeError\("Window identity changed"\)/);
+  assert.match(script, /con_mark="\^%s\$"/);
+  assert.match(script, /finally:[\s\S]*command\("unmark " \+ mark\)/);
+  assert.match(script, /def key\(node\):\s+return \(node\["id"\], node\["window"\]\)/);
+  assert.match(script, /saved\[target\] = True/);
+  const finite = guestWindowCommand(SESSION, { containerId: 2937926608, windowId: 501 }, "hide").args[2];
+  const shared = (text: string) => text.slice(text.indexOf("def request(args):"), text.indexOf("    return True\n") + "    return True\n".length);
+  assert.equal(shared(script), shared(finite));
 });
 
 test("public action mapping names scratchpad hiding honestly and preserves each target", () => {

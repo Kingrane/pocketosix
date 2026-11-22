@@ -37,11 +37,11 @@ export type MockSDKState = {
   stopTokens: string[];
 };
 
-export type MockSDKControl = { revealWindows: () => void; confirmFloating: () => void };
+export type MockSDKControl = { revealWindows: () => void; confirmFloating: () => void; finishCloses: () => void };
 type MockSDKOptions = {
   blackFrame?: boolean; loginUrl?: string; nativeKms?: boolean;
   probeFailure?: boolean; missingApps?: string[]; delayedWindow?: boolean;
-  delayedFloating?: boolean; ackFailure?: "launch" | "window";
+  delayedFloating?: boolean; ackFailure?: "launch" | "window"; highBitIds?: boolean; delayedClose?: boolean;
 };
 
 // This fixture exists ONLY in Playwright's network interception. It tests the
@@ -73,8 +73,10 @@ export const Linux = { create: async options => {
   window.__pocketTest.rootOverlayId = options.mounts.find(m => m.path === '/').dev.id;
   let activate, consoleWrite, kmsInput, kmsCanvas, kmsClick;
   let subscriber = null;
+  const closing = new Set();
   let nextWindow = 504;
   const state = window.__pocketTest;
+  if (guestOptions.highBitIds) state.guestWindows[0].containerId = 2937926608;
   const emit = text => consoleWrite(new TextEncoder().encode(text + '\n'), 0);
   const protocol = message => emit('[pocketosix-guest]' + JSON.stringify(message));
   const floatWindow = window => {
@@ -92,7 +94,10 @@ export const Linux = { create: async options => {
     state.guestWindows.forEach(floatWindow);
     protocol({ operation: 'floating', state: 'enabled', token: subscriber.token, changed: subscriber.saved.size });
   };
-  window.__pocketGuestControl = { revealWindows, confirmFloating };
+  window.__pocketGuestControl = { revealWindows, confirmFloating, finishCloses: () => {
+    state.guestWindows = state.guestWindows.filter(window => !closing.has(window.windowId));
+    closing.clear();
+  } };
   const tree = () => {
     const node = window => ({ type: 'con', id: window.containerId, window: window.windowId, name: window.title,
       window_properties: { class: window.className }, focused: window.focused,
@@ -153,6 +158,21 @@ export const Linux = { create: async options => {
         emit('[pocketosix-tree:' + args[3] + ']' + JSON.stringify(tree()));
         return Promise.resolve({ status: 0 });
       }
+      if (filename === '/usr/bin/python3' && args[2].includes('pocketosix-window-control:')) {
+        const targets = JSON.parse(args[4]);
+        for (const [containerId, windowId] of targets) {
+          const window = state.guestWindows.find(window => window.containerId === containerId && window.windowId === windowId);
+          if (!window || guestOptions.ackFailure === 'window') return ack(false);
+          if (args[5] === 'kill') {
+            if (guestOptions.delayedClose) closing.add(window.windowId);
+            else state.guestWindows = state.guestWindows.filter(candidate => candidate !== window);
+          }
+          else if (args[5] === 'move scratchpad') window.hidden = true;
+          else if (args[5] === 'scratchpad show') window.hidden = !window.hidden;
+          else window.floating = args[5] === 'floating enable';
+        }
+        return ack(true);
+      }
       if (filename === '/usr/bin/python3' && args.at(-1).startsWith('pocketosix-floating-stop:')) {
         state.subscriberStarts++; state.activeSubscribers++;
         state.maxSubscribers = Math.max(state.maxSubscribers, state.activeSubscribers);
@@ -187,9 +207,13 @@ export const Linux = { create: async options => {
         }
         const match = command.match(/^\[con_id=(\d+) id=(\d+)\] (kill|move scratchpad|scratchpad show|floating enable|floating disable)$/);
         if (!match || guestOptions.ackFailure === 'window') return ack(false);
+        if ([match[1], match[2]].some(value => Number(value) >= 2147483647)) return ack(false);
         const window = state.guestWindows.find(window => window.containerId === Number(match[1]) && window.windowId === Number(match[2]));
         if (!window) return ack(false);
-        if (match[3] === 'kill') state.guestWindows = state.guestWindows.filter(candidate => candidate !== window);
+        if (match[3] === 'kill') {
+          if (guestOptions.delayedClose) closing.add(window.windowId);
+          else state.guestWindows = state.guestWindows.filter(candidate => candidate !== window);
+        }
         else if (match[3] === 'move scratchpad') window.hidden = true;
         else if (match[3] === 'scratchpad show') window.hidden = !window.hidden;
         else window.floating = match[3] === 'floating enable';

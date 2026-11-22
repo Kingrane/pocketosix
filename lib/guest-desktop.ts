@@ -27,10 +27,15 @@ function options(session: GuestDesktopSession): GuestCommand["options"] {
   return { uid: session.uid, gid: session.gid, cwd: "/" };
 }
 
-function criteria(target: GuestWindowTarget) {
-  if (![target.containerId, target.windowId].every((id) => Number.isSafeInteger(id) && id > 0)) {
-    throw new Error("Нужны реальные container/window ID из свежего i3 get_tree.");
+function validateTarget(target: GuestWindowTarget) {
+  if (!Number.isSafeInteger(target.containerId) || target.containerId <= 0 || target.containerId > 0xffffffff ||
+      !Number.isSafeInteger(target.windowId) || target.windowId <= 0 || target.windowId >= 0x7fffffff) {
+    throw new Error("Нужны реальные container/window ID из свежего i3 get_tree. XID должен быть представим в 32-битном парсере i3.");
   }
+}
+
+function criteria(target: GuestWindowTarget) {
+  validateTarget(target);
   return `[con_id=${target.containerId} id=${target.windowId}]`;
 }
 
@@ -155,34 +160,22 @@ export function guestWindowCommand(session: GuestDesktopSession, target: GuestWi
     close: "kill", hide: "move scratchpad", restore: "scratchpad show",
     floating: "floating enable", tiling: "floating disable",
   };
+  validateTarget(target);
+  // i3 parse_long rejects negative numbers AND LONG_MAX. High container pointers
+  // cannot be expressed as con_id in this 32-bit i3; use a verified temporary mark.
+  if (target.containerId >= 0x7fffffff) return markedWindowCommand(session, [target], commands[action]);
   return ipc(session, [`${criteria(target)} ${commands[action]}`]);
 }
 
 export function guestFloatExistingWindows(session: GuestDesktopSession, targets: GuestWindowTarget[]) {
   if (!targets.length) throw new Error("Нет подтверждённых окон для переключения.");
+  targets.forEach(validateTarget);
+  if (targets.some(target => target.containerId >= 0x7fffffff)) return markedWindowCommand(session, targets, "floating enable");
   return ipc(session, [targets.map((target) => `${criteria(target)} floating enable`).join("; ")]);
 }
 
-function stopPayload(token: string) {
-  if (!/^[a-zA-Z0-9_-]{8,64}$/.test(token)) throw new Error("Некорректный token floating-подписчика.");
-  return `pocketosix-floating-stop:${token}`;
-}
-
-// No i3 config rewrite, tmp files, package installation, /proc/environ or X11
-// credentials. The owner must start at most one subscriber per live session.
-// Python 3 must be confirmed present before offering this optional action.
-const FLOATING_SUBSCRIBER = String.raw`
-import json, subprocess, sys, threading
-
-socket, stop = sys.argv[1:3]
-base = ["/usr/bin/i3-msg", "-s", socket]
-saved = {}
-monitor = None
-tick_timer = None
-
-def emit(state, **fields):
-    print("[pocketosix-guest]" + json.dumps(dict(operation="floating", state=state, token=stop, **fields)), flush=True)
-
+// Shared by finite controls and the long-lived subscriber. No shell interpolation.
+const I3_WINDOW_COMMANDS = String.raw`
 def request(args):
     result = subprocess.run(base + args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=10)
     if result.returncode != 0:
@@ -208,19 +201,81 @@ def windows(node):
 def key(node):
     return (node["id"], node["window"])
 
-def selector(target):
-    return "[con_id=%d id=%d]" % target
-
 def command_window(target, action):
+    container, xid = target
+    if (any(not isinstance(value, int) or isinstance(value, bool) for value in target)
+            or not 0 < container <= 0xffffffff or not 0 < xid < 0x7fffffff):
+        raise RuntimeError("Unsupported i3 id")
     try:
-        command(selector(target) + " " + action)
+        if container < 0x7fffffff:
+            command("[con_id=%d id=%d] " % target + action)
+        else:
+            # strtol cannot address this pointer. Verify BOTH canonical IDs, add
+            # a unique mark without replacing user marks, then verify them again.
+            tree = list(windows(request(["-t", "get_tree"])))
+            if not any(key(node) == target for node in tree):
+                return False
+            mark = "pocketosix-target-" + uuid.uuid4().hex
+            if any(mark in node.get("marks", []) for node in tree):
+                raise RuntimeError("Target mark collision")
+            try:
+                command("[id=%d] mark --add %s" % (xid, mark))
+                tree = list(windows(request(["-t", "get_tree"])))
+                marked = [node for node in tree if mark in node.get("marks", [])]
+                if len(marked) != 1 or key(marked[0]) != target:
+                    raise RuntimeError("Window identity changed")
+                command('[id=%d con_mark="^%s$"] ' % (xid, mark) + action)
+            finally:
+                # Global unmark removes only our unpredictable token, even if
+                # the XID was reused or the original window has just closed.
+                command("unmark " + mark)
     except RuntimeError:
-        # A queued event or snapshot can outlive its window. Only a fresh tree
-        # proving both IDs absent lets us ignore failure; never retry mutation.
+        # A queued event can outlive its window. Never retry mutation.
         if any(key(node) == target for node in windows(request(["-t", "get_tree"]))):
             raise
         return False
     return True
+`;
+
+function markedWindowCommand(session: GuestDesktopSession, targets: GuestWindowTarget[], action: string): GuestCommand {
+  return { fileName: "/usr/bin/python3", args: ["-B", "-c", String.raw`
+# pocketosix-window-control: canonical ID guard plus temporary i3 mark
+import json, subprocess, sys, uuid
+socket, encoded, action = sys.argv[1:4]
+base = ["/usr/bin/i3-msg", "-s", socket]
+${I3_WINDOW_COMMANDS}
+try:
+    for target in json.loads(encoded):
+        if not command_window(tuple(target), action):
+            raise RuntimeError("Window identity changed")
+except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired):
+    print("[pocketosix-window] Targeted command failed", flush=True)
+    raise SystemExit(1)
+`, session.socketPath, JSON.stringify(targets.map(target => [target.containerId, target.windowId])), action],
+  options: options(session), completion: "ipc-ack" };
+}
+
+function stopPayload(token: string) {
+  if (!/^[a-zA-Z0-9_-]{8,64}$/.test(token)) throw new Error("Некорректный token floating-подписчика.");
+  return `pocketosix-floating-stop:${token}`;
+}
+
+// No i3 config rewrite, tmp files, package installation, /proc/environ or X11
+// credentials. The owner must start at most one subscriber per live session.
+// Python 3 must be confirmed present before offering this optional action.
+const FLOATING_SUBSCRIBER = String.raw`
+import json, subprocess, sys, threading, uuid
+
+socket, stop = sys.argv[1:3]
+base = ["/usr/bin/i3-msg", "-s", socket]
+saved = {}
+monitor = None
+tick_timer = None
+
+def emit(state, **fields):
+    print("[pocketosix-guest]" + json.dumps(dict(operation="floating", state=state, token=stop, **fields)), flush=True)
+
+${I3_WINDOW_COMMANDS}
 
 def float_window(node):
     if node.get("type") != "con" or not node.get("window"):
@@ -284,12 +339,16 @@ try:
         elif node and event.get("change") == "close":
             saved.pop(key(node), None)
     raise RuntimeError("i3 subscription ended")
-except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired):
+except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
     try:
         failed = restore()
     except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired):
         failed = len(saved)
-    emit("error", restoreFailures=failed)
+    # Report the category only; never leak socket paths, arguments or X11 data.
+    reasons = {"i3-msg failed": "ipc-process-failed", "Invalid i3 tree": "invalid-tree",
+               "i3 rejected command": "command-rejected", "i3 subscription unavailable": "subscription-unavailable",
+               "i3 subscription ended": "subscription-ended"}
+    emit("error", restoreFailures=failed, errorType=type(error).__name__, errorCode=reasons.get(str(error), "unknown"))
     sys.exit(1)
 finally:
     if tick_timer is not None:

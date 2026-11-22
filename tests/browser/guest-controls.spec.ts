@@ -69,28 +69,30 @@ test("preboot Apps is inert and makes no SDK/CDN request", async ({ page }) => {
   expect(requests).toEqual([]);
 });
 
-test("postboot Apps probes the current session and reads tagged tree metadata without another init", async ({ page }) => {
+test("postboot default floating probes the current session once without another init", async ({ page }) => {
   await boot(page);
-  expect((await state(page)).guestRuns).toEqual([]);
+  await expect.poll(async () => (await state(page)).activeSubscribers).toBe(1);
   await inspect(page);
   const first = await state(page);
   expect(first.guestProbes).toBe(1);
-  expect(first.guestTrees).toBe(1);
+  expect(first.guestTrees).toBe(2);
   expect(first.guestRuns[0].args[2]).toBe("pocketosix-guest-probe");
   expect(first.guestRuns[0].args.at(-1)).toMatch(/^[a-zA-Z0-9_-]{8,64}$/);
   expect(first.guestRuns[0].options).toEqual({ uid: 0, gid: 0, cwd: "/" });
   expect(first.guestRuns[1]).toMatchObject({ filename: "/usr/bin/python3", options: { uid: 1000, gid: 1000, cwd: "/" } });
   expect(first.guestRuns[1].args.slice(0, 2)).toEqual(["-B", "-c"]);
-  expect(first.guestRuns[1].args[2]).toContain("[pocketosix-tree:");
-  expect(first.guestRuns[1].args[4]).toBe("/tmp/i3-test/ipc-socket.7");
-  expect(first.guestRuns[1].args[3]).not.toBe(first.guestRuns[0].args.at(-1));
+  const tree = first.guestRuns.find(run => run.args[2]?.includes("[pocketosix-tree:"))!;
+  expect(tree.args[4]).toBe("/tmp/i3-test/ipc-socket.7");
+  expect(tree.args[3]).not.toBe(first.guestRuns[0].args.at(-1));
   await expect(panel(page).locator("[data-guest-window]")).toHaveCount(3);
-  await expect(row(page, 501)).toContainText("XTerm · Tiling");
+  await expect(row(page, 501)).toContainText("XTerm · Floating");
+  await expect(floating(page)).toHaveAttribute("aria-pressed", "true");
   await expect(row(page, 503)).toContainText("FixtureApp · Floating");
   await refresh(page).click();
   await expect(refresh(page)).toBeEnabled();
   expect((await state(page)).guestProbes).toBe(1);
-  expect((await state(page)).guestTrees).toBe(2);
+  expect((await state(page)).guestTrees).toBe(3);
+  expect((await state(page)).subscriberStarts).toBe(1);
 });
 
 test("missing guest apps stay disabled while available apps and windows remain usable", async ({ page, context }) => {
@@ -207,8 +209,7 @@ test("a rejected i3 COMMAND ACK exits 2 and leaves the window intact", async ({ 
 test("floating owns one long-lived subscriber and stops only through its exact send_tick token", async ({ page, context }) => {
   await mockSDK(context, { nativeKms: true, delayedFloating: true });
   await boot(page);
-  await inspect(page);
-  await floating(page).click();
+  await openApps(page);
   await expect.poll(async () => (await state(page)).activeSubscribers).toBe(1);
   await expect(floating(page)).toBeDisabled();
   await floating(page).evaluate((button: HTMLButtonElement) => button.click());
@@ -297,6 +298,75 @@ for (const width of [1440, 390]) {
     await page.keyboard.press("b");
     expect((await state(page)).kmsKeys).toEqual(["b"]);
     expect((await state(page)).kmsBindings).toBe(bindings);
-    expect((await state(page)).subscriberStarts).toBe(0);
+    expect((await state(page)).subscriberStarts).toBe(1);
   });
 }
+
+test("pending notice can be dismissed without releasing the guest action gate", async ({ page, context }) => {
+  await mockSDK(context, { nativeKms: true, delayedWindow: true });
+  await boot(page);
+  await inspect(page);
+  await launch(page, "terminal").click();
+  const notice = page.locator("[data-guest-notice]");
+  await expect(notice).toBeVisible();
+  await notice.getByRole("button", { name: "Dismiss message", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await openApps(page);
+  await expect(refresh(page)).toBeDisabled();
+  await launch(page, "terminal").evaluate((button: HTMLButtonElement) => button.click());
+  expect((await state(page)).guestAcks).toBe(1);
+  await panel(page).getByRole("button", { name: "Close panel", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await page.evaluate(() => (window as unknown as FixtureWindow).__pocketGuestControl.revealWindows());
+  await inspect(page);
+  await launch(page, "terminal").click();
+  await expect(notice).toBeVisible();
+  expect((await state(page)).guestAcks).toBe(2);
+  await page.evaluate(() => (window as unknown as FixtureWindow).__pocketGuestControl.revealWindows());
+});
+
+test("asynchronous close keeps controls busy until the same window really disappears", async ({ page, context }) => {
+  await mockSDK(context, { nativeKms: true, delayedClose: true });
+  await boot(page);
+  await inspect(page);
+  await row(page, 501).getByRole("button", { name: "Close Linux window Test terminal", exact: true }).click();
+  await expect(refresh(page)).toBeDisabled();
+  await expect(row(page, 501)).toBeVisible();
+  await row(page, 501).getByRole("button", { name: "Close Linux window Test terminal", exact: true }).evaluate((button: HTMLButtonElement) => button.click());
+  expect(ipcCommands(await state(page))).toEqual(["[con_id=101 id=501] kill"]);
+  await page.evaluate(() => (window as unknown as FixtureWindow).__pocketGuestControl.finishCloses());
+  await expect(row(page, 501)).toHaveCount(0);
+  await expect(row(page, 502)).toBeVisible();
+  await expect(refresh(page)).toBeEnabled();
+  expect(ipcCommands(await state(page))).toHaveLength(1);
+});
+
+test("high-bit container IDs retain both canonical IDs in guarded mark commands", async ({ page, context }) => {
+  await mockSDK(context, { nativeKms: true, highBitIds: true });
+  await boot(page);
+  await inspect(page);
+  await row(page, 501).getByRole("button", { name: "Hide window Test terminal", exact: true }).click();
+  await expect(row(page, 501)).toHaveAttribute("data-guest-hidden", "true");
+  await expect(row(page, 502)).toHaveAttribute("data-guest-hidden", "false");
+  const guarded = (await state(page)).guestRuns.find(run => run.args[2]?.includes('pocketosix-window-control:'))!;
+  expect(guarded.args.slice(3)).toEqual(["/tmp/i3-test/ipc-socket.7", "[[2937926608,501]]", "move scratchpad"]);
+  expect(ipcCommands(await state(page))).toEqual([]);
+  await row(page, 501).getByRole("button", { name: "Show window Test terminal", exact: true }).click();
+  await expect(row(page, 501)).toHaveAttribute("data-guest-hidden", "false");
+  await row(page, 501).getByRole("button", { name: "Close Linux window Test terminal", exact: true }).click();
+  await expect(row(page, 501)).toHaveCount(0);
+  await expect(row(page, 502)).toBeVisible();
+});
+
+test("error notice can be dismissed but stays available in Apps and reappears for a new failure", async ({ page, context }) => {
+  await mockSDK(context, { nativeKms: true, probeFailure: true });
+  await boot(page);
+  const notice = page.locator("[data-guest-notice]");
+  await expect(notice).toHaveAttribute("role", "alert");
+  await notice.getByRole("button", { name: "Dismiss message", exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await openApps(page);
+  await expect(panel(page).getByRole("alert")).toBeVisible();
+  await panel(page).getByRole("button", { name: "Close panel", exact: true }).click();
+  await expect(notice).toBeVisible();
+});

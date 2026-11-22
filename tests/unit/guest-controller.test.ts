@@ -40,7 +40,7 @@ function observe(task: Promise<boolean>) {
 }
 
 function setup(t: TestContext, prepared = false) {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
   // Same test-only private-field cast/stub as resize.test.ts. No SDK import,
   // browser globals, image access, IndexedDB or exported production adapter.
   const controller = webvm as unknown as Controller;
@@ -206,6 +206,133 @@ test("query timeout also bounds an unfinished run and ignores its late output", 
   await drain();
   assert.equal(controller.snapshot.guestDesktop.pending, null);
   assert.deepEqual(controller.snapshot.guestDesktop.windows, []);
+});
+
+test("close waits for actual disappearance after ACK without sending another kill", { timeout: 1000 }, async t => {
+  const { runs, treeReply, controller } = setup(t, true);
+  const outcome = observe(webvm.controlGuestWindow({ containerId: 101, windowId: 201 }, "close"));
+  await drain();
+  await treeReply(runs[0], TREE);
+  runs[1].finish();
+  await drain();
+  await treeReply(runs[2], TREE);
+  assert.equal(outcome.result, undefined);
+  assert.equal(controller.snapshot.guestDesktop.pending, "close");
+  assert.equal(await webvm.controlGuestWindow({ containerId: 101, windowId: 201 }, "close"), false);
+  t.mock.timers.tick(500);
+  await drain();
+  await treeReply(runs[3], EMPTY_TREE);
+  assert.equal(outcome.result, true);
+  assert.deepEqual(controller.snapshot.guestDesktop.windows, []);
+  assert.equal(runs.filter(run => run.args.at(-1)?.endsWith(" kill")).length, 1);
+});
+
+test("accepted close that leaves the window alive fails honestly without retry or reset", { timeout: 1000 }, async t => {
+  const { runs, treeReply, controller } = setup(t, true);
+  let now = 0;
+  t.mock.method(performance, "now", () => now);
+  const outcome = observe(webvm.controlGuestWindow({ containerId: 101, windowId: 201 }, "close"));
+  await drain();
+  await treeReply(runs[0], TREE);
+  runs[1].finish();
+  await drain();
+  await treeReply(runs[2], TREE);
+  for (let attempt = 0; attempt < 20; attempt++) {
+    now += 500;
+    t.mock.timers.tick(500);
+    await drain();
+    await treeReply(runs[3 + attempt], TREE);
+  }
+  assert.equal(outcome.result, false);
+  assert.match(controller.snapshot.guestDesktop.error!, /окно ещё открыто/);
+  assert.equal(controller.snapshot.guestDesktop.pending, null);
+  assert.equal(controller.snapshot.guestDesktop.windows[0].windowId, WINDOW.window);
+  assert.equal(runs.filter(run => run.args.at(-1)?.endsWith(" kill")).length, 1);
+  assert.equal(controller.snapshot.phase, "ready");
+});
+
+test("cold discovery accepts a real reply after 20 seconds without issuing another probe", { timeout: 1000 }, async t => {
+  const { runs, output, probeText, treeReply, controller } = setup(t);
+  const outcome = observe(webvm.inspectGuestDesktop());
+  t.mock.timers.tick(30000);
+  await drain();
+  assert.equal(outcome.result, undefined);
+  assert.equal(controller.snapshot.guestDesktop.error, null);
+  assert.equal(await webvm.inspectGuestDesktop(), false);
+  assert.equal(runs.length, 1);
+  output(probeText(runs[0]));
+  runs[0].finish();
+  await drain();
+  await treeReply(runs[1], TREE);
+  assert.equal(outcome.result, true);
+});
+
+test("cold discovery still times out at 90 seconds and blocks until its process exits", { timeout: 1000 }, async t => {
+  const { runs, controller } = setup(t);
+  const outcome = observe(webvm.inspectGuestDesktop());
+  t.mock.timers.tick(90000);
+  await drain();
+  assert.equal(outcome.result, false);
+  assert.equal(controller.snapshot.guestDesktop.pending, "stalled");
+  assert.match(controller.snapshot.guestDesktop.error!, /90 секунд/);
+  assert.equal(await webvm.inspectGuestDesktop(), false);
+  assert.equal(runs.length, 1);
+  runs[0].finish();
+  await drain();
+  assert.equal(controller.snapshot.guestDesktop.pending, null);
+});
+
+test("default floating is idempotent while starting, after timeout and once enabled", { timeout: 1000 }, async t => {
+  const { runs, controller, output, treeReply } = setup(t, true);
+  const first = observe(webvm.enableGuestFloating());
+  await drain();
+  assert.equal(controller.snapshot.guestDesktop.floating, "starting");
+  assert.equal(await webvm.enableGuestFloating(), false);
+  t.mock.timers.tick(20000);
+  await drain();
+  assert.equal(first.result, false);
+  assert.equal(await webvm.enableGuestFloating(), true);
+  assert.equal(runs.length, 1);
+  output("[pocketosix-guest]" + JSON.stringify({ operation: "floating", state: "enabled", token: runs[0].args.at(-1) }) + "\n");
+  await drain();
+  assert.equal(controller.snapshot.guestDesktop.floating, "on");
+  assert.equal(await webvm.enableGuestFloating(), true);
+  assert.equal(runs.length, 1);
+  const stop = observe(webvm.toggleGuestFloating());
+  await drain();
+  runs[1].finish();
+  output("[pocketosix-guest]" + JSON.stringify({ operation: "floating", state: "disabled", token: runs[0].args.at(-1) }) + "\n");
+  runs[0].finish();
+  await drain();
+  await treeReply(runs[2]);
+  assert.equal(stop.result, true);
+  assert.equal(controller.snapshot.guestDesktop.floating, "off");
+  assert.equal(runs.filter(run => run.args.at(-1)?.startsWith("pocketosix-floating-stop:") && run.fileName === "/usr/bin/python3").length, 1);
+});
+
+test("default floating attempts once only after a non-uniform real-frame sample", { timeout: 1000 }, async t => {
+  const { controller } = setup(t);
+  const runtime = controller as Controller & { canvas: HTMLCanvasElement | null; waitForFrame(token: number): void };
+  const originalDocument = globalThis.document;
+  const originalCanvas = runtime.canvas;
+  let painted = false;
+  const enable = t.mock.method(webvm, "enableGuestFloating", () => Promise.resolve(true));
+  globalThis.document = { createElement: () => ({ getContext: () => ({
+    drawImage() {}, getImageData: () => ({ data: painted ? [0, 0, 0, 255, 1, 0, 0, 255] : [0, 0, 0, 255, 0, 0, 0, 255] }),
+  }) }) } as unknown as Document;
+  runtime.canvas = {} as HTMLCanvasElement;
+  controller.snapshot = { ...controller.snapshot, phase: "starting" };
+  t.after(() => { globalThis.document = originalDocument; runtime.canvas = originalCanvas; });
+  runtime.waitForFrame(controller.lifetime);
+  t.mock.timers.tick(500);
+  assert.equal(enable.mock.callCount(), 0);
+  painted = true;
+  t.mock.timers.tick(500);
+  assert.equal(enable.mock.callCount(), 1);
+  assert.equal(controller.snapshot.phase, "ready");
+  runtime.waitForFrame(controller.lifetime);
+  t.mock.timers.tick(10000);
+  assert.equal(enable.mock.callCount(), 1);
 });
 
 test("floating stop waits for subscriber exit, but a missing exit cannot leave the action busy forever", { timeout: 1000 }, async t => {
