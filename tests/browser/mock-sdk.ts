@@ -18,12 +18,13 @@ export type MockSDKState = {
   kmsBindings: number;
   kmsClicks: number;
   kmsKeys: string[];
+  kmsKeyUps: string[];
 };
 
 // This fixture exists ONLY in Playwright's network interception. It tests the
 // React/controller contract, not Linux. Production always imports the real SDK.
 const SOURCE = `
-window.__pocketTest = { boots: 0, creates: 0, deletes: 0, resets: 0, resetIds: [], rootOverlayId: null, events: [], consoleInput: [], consoleSize: null, mounts: null, init: null, kmsBindings: 0, kmsClicks: 0, kmsKeys: [] };
+window.__pocketTest = { boots: 0, creates: 0, deletes: 0, resets: 0, resetIds: [], rootOverlayId: null, events: [], consoleInput: [], consoleSize: null, mounts: null, init: null, kmsBindings: 0, kmsClicks: 0, kmsKeys: [], kmsKeyUps: [] };
 class Device {
   constructor(id = null) { this.id = id; }
   delete() {}
@@ -85,6 +86,10 @@ export async function mockSDK(context: BrowserContext, options: { blackFrame?: b
       kmsInput.setAttribute('aria-label', 'Test-only native KMS input');
       kmsInput.addEventListener('keydown', event => {
         window.__pocketTest.kmsKeys.push(event.key);
+        event.preventDefault();
+      });
+      kmsInput.addEventListener('keyup', event => {
+        window.__pocketTest.kmsKeyUps.push(event.key);
         event.preventDefault();
       });
       document.body.appendChild(kmsInput);

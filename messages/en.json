@@ -8,9 +8,12 @@
     "home": "pocketosix — home", "skip": "Skip to content", "docs": "Docs", "github": "GitHub", "launch": "Launch", "language": "Choose language", "close": "Close", "cancel": "Cancel", "license": "License", "author": "Made by Kingrane", "mobileNotice": "PocketOSix works best on desktop with a keyboard."
   },
   "landing": {
+    "stats": { "label": "Compute and image facts", "computeServers": "Compute servers", "coldBoot": "Cold boot", "baseImageSize": "Base image", "localCompute": "Local compute", "notMeasured": "Not measured" },
+    "launch": { "mobileTitle": "A desktop is recommended.", "opening": "Opening desktop…" },
     "navigation": "Main navigation",
     "footerNavigation": "Footer navigation",
     "hero": {
+      "videoAlt": "A recording of the real Alpine / i3 desktop.",
       "title": "Linux in a browser tab.",
       "description": "A real Alpine desktop — Xorg and i3 — running locally on your device. No install, no account.",
       "caption": "Powered by CheerpX · Your disk stays in your browser",
@@ -19,16 +22,20 @@
       "mediaPendingDescription": "This space is reserved for a capture of the running Alpine desktop, not a simulated interface."
     },
     "features": {
+      "capturePending": "Capture pending",
       "label": "What PocketOSix offers",
       "userspace": {
+        "imageAlt": "A shell running in the real Alpine / i3 desktop.", "placeholder": "Reserved for a real Alpine shell capture.",
         "title": "Real Alpine userspace",
         "description": "Shell, coreutils and apk packages. Not a scripted demo."
       },
       "disk": {
+        "imageAlt": "A saved file reopened in Alpine after a browser reload.", "placeholder": "Reserved for a real saved-file capture.",
         "title": "Persistent local disk",
         "description": "Disk changes committed to browser storage stay between sessions."
       },
       "compute": {
+        "imageAlt": "The real Alpine desktop alongside the browser task manager showing local CPU activity.", "placeholder": "Reserved for a real local-compute capture.",
         "title": "Runs on your device",
         "description": "Compute happens locally via WebAssembly, without a compute server."
       }
@@ -58,6 +65,17 @@
     "licenseNote": "MIT covers the original PocketOSix code. CheerpX is proprietary; Alpine and its packages have separate licenses."
   },
   "run": {
+    "rail": "Desktop rail", "toolbar": "Desktop controls", "panel": "Desktop panel", "closePanel": "Close panel",
+    "exitHome": "Exit to home", "backHome": "Back to home", "enterImmersive": "Immersive", "exitImmersive": "Exit immersive", "showControls": "Show desktop controls",
+    "errorStatus": "Error", "stoppedStatus": "Not started", "immersiveHint": "Move the mouse to the top edge for controls.",
+    "commandPalette": "Command palette", "searchActions": "Search actions…",
+    "panels": { "display": "Display", "terminal": "Terminal", "disk": "Disk", "network": "Network", "shortcuts": "Shortcuts", "logs": "Logs" },
+    "learnMore": "Learn more", "storageInfo": "About storage and writes", "save": "Save", "saveUnavailable": "Unavailable: CheerpX 1.4.0 has no verified public durable-flush API.",
+    "diskWriteDetails": "Only files, packages and settings committed to browser storage survive reload. Guest writes may finish before that asynchronous commit. Reloading or leaving can lose recent changes; RAM, running processes and unsaved app documents are not preserved. Storage belongs to this browser profile and origin. Do not keep your only copy of important files here.",
+    "networkInfo": "About guest networking", "networkDetails": "Tailscale connects only when you choose to. Internet access needs your own account, an external exit node and a suitable tailnet policy. A Tailscale IP or detected exit node does not prove internet access; verify it inside the guest. The desktop starts without guest networking.",
+    "guestShortcuts": "Guest i3 shortcuts", "inputInfo": "About keyboard focus", "copyLogs": "Copy", "logsCopied": "Runtime output copied.",
+    "browserShortcuts": { "title": "Browser controls", "menu": "Desktop menu — release all keys to open; physical M key in any layout", "palette": "Command palette — browser UI focus only; physical K key", "paletteKeys": "Ctrl + K" },
+    "leaveTitle": "Leave desktop?", "leaveDescription": "Files already committed to this browser remain. Leaving ends running processes and unsaved app work.", "leaveWriteWarning": "Writes are asynchronous: pending changes may be lost. Save open documents in the guest before leaving.", "stay": "Stay", "leave": "Leave",
     "navigation": "Navigation", "home": "Home", "controls": "Desktop controls",
     "skipDesktop": "Skip to desktop", "desktopTitle": "Linux desktop", "canvasLabel": "Alpine Linux / i3. Click the desktop for keyboard input.", "canvasFallback": "Canvas and WebAssembly are required.",
     "running": "Running", "openMenu": "Open menu", "menuTitle": "Desktop menu",
@@ -83,21 +101,21 @@
       "runtime": { "title": "Alpine could not start.", "message": "Check access to the official runtime and disk CDNs. Extensions, a VPN, or network policies may block downloads. Your files have not been reset." }
     },
     "technicalDetails": "Technical details", "retry": "Reload and try again", "showLogs": "Show logs", "logsTitle": "Logs", "logsDescription": "Actual runtime output. Technical messages may use the runtime’s original language.",
-    "displayTitle": "Display", "scaleTitle": "Display scaling", "fit": "Fit", "native": "Native", "pointerLock": "Lock pointer", "pointerLockHint": "Captures the pointer in the guest. Press Escape to release it.", "pointerLockUnavailable": "Pointer lock is unavailable in this browser.", "pointerLockDenied": "The browser did not allow pointer lock.", "afterBoot": "Available after the desktop starts.",
-    "terminalTitle": "Terminal", "terminalDescription": "A real tty1 console, separate from the i3 terminal. Use it for a shell or diagnostics.", "openTerminal": "Open terminal", "returnTerminal": "Return to terminal", "consoleUnavailable": "The guest console is not connected yet.",
+    "displayTitle": "Display", "scaleTitle": "Display scaling", "fit": "Fit", "native": "Native", "pointerLock": "Lock pointer", "pointerLockHint": "Press Escape to release.", "pointerLockUnavailable": "Pointer lock is unavailable in this browser.", "pointerLockDenied": "The browser did not allow pointer lock.", "afterBoot": "Available after the desktop starts.",
+    "terminalTitle": "Terminal", "terminalDescription": "Separate guest tty1 console.", "openTerminal": "Open terminal", "returnTerminal": "Return to terminal", "consoleUnavailable": "The guest console is not connected yet.",
     "terminalRegion": "Guest terminal tty1", "terminalHeading": "Terminal · tty1", "terminalLogin": "Real tty1 · log in as user (factory password: password). Guest size: 100×30.", "terminalSize": "Terminal size", "clearTerminal": "Clear terminal screen", "copySelection": "Copy selection", "selectToCopy": "Select terminal text to copy.", "changeDock": "Change terminal dock", "mobileDock": "On narrow screens the terminal docks below.", "expandTerminal": "Expand terminal", "restoreTerminal": "Restore terminal", "closeTerminal": "Close terminal", "terminalLoading": "The terminal is loading.", "terminalError": "The guest terminal could not open.", "clipboardDenied": "Clipboard access was denied. Use your browser’s copy command.",
-    "diskTitle": "Disk", "diskDescription": "Files, packages and settings are written automatically to this browser. Writes are asynchronous: reloading during a write can lose recent changes. Running processes are not saved.", "originUsage": "Entire origin usage", "quota": "Origin quota", "protection": "Storage protection", "granted": "Granted", "notGranted": "Not granted", "unavailable": "Unavailable", "units": { "bytes": "B", "kib": "KiB", "mib": "MiB", "gib": "GiB" },
+    "diskTitle": "Disk", "diskDescription": "Writes are asynchronous; manual Save is unavailable.", "originUsage": "Entire origin usage", "quota": "Origin quota", "protection": "Storage protection", "granted": "Granted", "notGranted": "Not granted", "unavailable": "Unavailable", "units": { "bytes": "B", "kib": "KiB", "mib": "MiB", "gib": "GiB" },
     "requesting": "Requesting…", "storageProtected": "Storage protection granted", "protectStorage": "Request storage protection", "storageUnavailable": "The browser has not provided storage information. Protection cannot be requested here yet.", "protectionGranted": "Protection was granted. Site data can still be deleted manually. Files belong to this browser profile and origin.", "storageLimits": "Usage and quota cover the entire origin, not just this disk. The browser may deny protection or evict data under storage pressure. A different profile or origin has a different disk.", "protectionDenied": "The browser declined storage protection. Your disk is still saved, but may be evicted under storage pressure.",
-    "restart": "Restart", "restartTitle": "Restart Alpine?", "restartDescription": "Reload ends the current processes. Files remain on your disk. Save open documents and wait for writes to finish first.", "restartNextBoot": "The page will return to the start screen. Choose > boot to start a new session.",
+    "restart": "Restart", "restartTitle": "Restart Alpine?", "restartDescription": "Reload ends running processes and unsaved app work. Only files already committed to browser storage remain; pending asynchronous writes can be lost. Save your documents in the guest before restarting.", "restartNextBoot": "The page will return to the start screen. Choose > boot to start a new session.",
     "resetDisk": "Reset disk", "resetUnavailable": "Disk reset is available after the desktop starts.", "resetTitle": "Start with a clean disk?", "resetDescription": "All files, settings and installed packages on this disk will be permanently deleted. This cannot be undone.", "resetNextBoot": "The page reloads first. Choose > boot again to clear only this disk’s overlay before Alpine starts. Other site data is not cleared.", "resetConfirmation": "Type pocketosix to confirm", "keepDisk": "Keep my disk", "deleteDisk": "Delete disk data", "resetPending": "Preparing reset…",
-    "networkTitle": "Network", "tailscale": "Tailscale", "ip": "IP", "exitNode": "Exit node", "exitDetected": "Detected; verify access", "exitNotDetected": "Not detected", "networkDescription": "Networking is optional. Internet access needs your own Tailscale account, an external exit node and a suitable tailnet policy. An IP alone does not prove internet access.",
+    "networkTitle": "Network", "tailscale": "Tailscale", "ip": "IP", "exitNode": "Exit node", "exitDetected": "Detected; verify access", "exitNotDetected": "Not detected", "networkDescription": "Optional. Internet access requires an external exit node.",
     "networkStates": { "disconnected": "Off", "connecting": "Connecting", "login": "Sign-in required", "connected": "Connected to tailnet", "error": "Connection failed" },
     "continueLogin": "Continue Tailscale sign-in", "connectTailscale": "Connect Tailscale", "connecting": "Connecting…", "loginPending": "Waiting for Tailscale. Use the sign-in window when it opens.", "disconnectHint": "SDK disconnect is not verified. Restart to end this session; the new session will not connect automatically.", "exitGuide": "Set up an exit node", "networkError": "Tailscale could not connect. Check the technical details and your tailnet settings.",
-    "shortcutsTitle": "Keyboard shortcuts", "inputHint": "Click the guest desktop before typing. While a browser dialog is open, input stays in the browser.", "modifier": "i3 modifier: Mod1 = Alt",
+    "shortcutsTitle": "Keyboard shortcuts", "inputHint": "Click the guest desktop before typing. While a browser modal is open, input stays in the browser.", "modifier": "i3 modifier · Mod1 =",
     "shortcuts": {
       "terminal": { "keys": "Alt + Enter", "description": "Open a terminal in i3" },
       "launcher": { "keys": "Alt + d", "description": "Open the application launcher" },
-      "workspaces": { "keys": "Alt + 1…9", "description": "Switch i3 workspaces" },
+      "workspaces": { "keys": "Alt + 1…9 / 0", "description": "Switch to workspace 1–10" },
       "close": { "keys": "Alt + Shift + q", "description": "Close the guest window" }
     },
     "languageTitle": "Language", "gettingStarted": "Getting started", "firstUse": "Wait for the guest bar, open Apps → Terminal, then wait for the shell prompt.", "firstUseTerminal": "is the configured terminal shortcut;", "firstUseLauncher": "opens apps.", "dismissHelp": "Dismiss getting-started help", "dismissMessage": "Dismiss message", "operationError": "The action could not finish. Check the technical details. Your disk has not been reset automatically."

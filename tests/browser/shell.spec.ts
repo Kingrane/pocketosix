@@ -14,31 +14,40 @@ async function mockState(page: Page) {
 }
 
 function activeDialog(page: Page) {
-  // The log dialog stays mounted for the controller's console ref, even closed.
+  // The panel and its log node stay mounted, even closed.
   return page.locator("dialog[open]");
 }
 
 function toolbar(page: Page) {
-  return page.getByRole("navigation", { name: "Desktop controls", exact: true });
+  return page.locator("nav[data-desktop-toolbar]");
+}
+
+function rail(page: Page) {
+  return page.getByRole("navigation", { name: "Desktop rail", exact: true });
 }
 
 async function revealToolbar(page: Page) {
-  await page.mouse.move(1, 32);
+  await page.mouse.move(1, 12);
   // Opacity-hidden controls still satisfy Playwright's toBeVisible().
   await expect(toolbar(page)).toHaveCSS("opacity", "1");
 }
 
 async function openMenu(page: Page) {
-  await revealToolbar(page);
-  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  if (await toolbar(page).count()) {
+    await revealToolbar(page);
+    await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  } else {
+    await rail(page).getByRole("button", { name: "Disk", exact: true }).focus();
+    await page.keyboard.press("Control+Alt+Shift+m");
+  }
   await expect(activeDialog(page)).toHaveAccessibleName("Desktop menu");
   await expect(activeDialog(page)).toBeVisible();
   return activeDialog(page);
 }
 
 async function openTerminal(page: Page) {
-  const drawer = await openMenu(page);
-  await drawer.getByRole("button", { name: "Open terminal", exact: true }).click();
+  await rail(page).getByRole("button", { name: "Terminal", exact: true }).click();
+  await activeDialog(page).getByRole("button", { name: "Open terminal", exact: true }).click();
   await expect(activeDialog(page)).toHaveCount(0);
   const terminal = page.getByRole("region", { name: "Guest terminal tty1", exact: true });
   await expect(terminal.locator(".xterm-helper-textarea")).toBeAttached();
@@ -46,8 +55,8 @@ async function openTerminal(page: Page) {
 }
 
 async function openReset(page: Page) {
-  const drawer = await openMenu(page);
-  await drawer.getByRole("button", { name: "Reset disk", exact: true }).click();
+  await rail(page).getByRole("button", { name: "Disk", exact: true }).click();
+  await activeDialog(page).getByRole("button", { name: "Reset disk", exact: true }).click();
   await expect(activeDialog(page)).toHaveAccessibleName("Start with a clean disk?");
   await expect(activeDialog(page)).toBeVisible();
   return activeDialog(page);
@@ -103,7 +112,7 @@ test("isolated English preflight imports no SDK; a double boot click creates one
   expect(state.webPath).toBe("");
   expect(state.resets).toBe(0);
   await expect(page.getByTestId("boot-screen")).not.toBeAttached();
-  await expect(toolbar(page).getByRole("status")).toHaveText("Running");
+  await expect(rail(page).getByRole("status")).toHaveAccessibleName("Running");
 });
 
 test("missing isolation disables boot and shows only the failed check without importing SDK", async ({ page }) => {
@@ -169,38 +178,39 @@ test("a second tab only checks the writable disk lock after its boot click", asy
   expect((await mockState(second)).rootOverlayId).toBe(OVERLAY_ID);
 });
 
-test("native shortcuts drawer traps keyboard focus and restores it to the toolbar opener", async ({ page }) => {
+test("immersive shortcuts drawer traps focus and returns it to the guest", async ({ page }) => {
   await openRun(page);
+  await rail(page).getByRole("button", { name: "Immersive", exact: true }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-mode", "immersive");
   await revealToolbar(page);
   const opener = page.getByRole("button", { name: "Keyboard shortcuts", exact: true });
   await opener.focus();
   await page.keyboard.press("Enter");
   const drawer = activeDialog(page);
-  await expect(drawer).toHaveAccessibleName("Desktop menu");
+  await expect(drawer).toHaveAccessibleName("Shortcuts");
   await expect(drawer.getByRole("heading", { name: "Keyboard shortcuts", exact: true })).toBeVisible();
   expect(await drawer.evaluate((element) => element.matches(":modal"))).toBe(true);
-  await expect(page.locator(".desktop-stage")).toHaveAttribute("inert", "");
+  await expect(page.locator("#main-content")).toHaveAttribute("inert", "");
   await expect.poll(() => drawer.evaluate((element) => element.contains(document.activeElement))).toBe(true);
   await page.keyboard.press("Tab");
   await expect.poll(() => drawer.evaluate((element) => element.contains(document.activeElement))).toBe(true);
   await page.keyboard.press("Shift+Tab");
   await expect.poll(() => drawer.evaluate((element) => element.contains(document.activeElement))).toBe(true);
-  await page.keyboard.press("Escape");
+  await drawer.getByRole("button", { name: "Close panel", exact: true }).click();
   await expect(activeDialog(page)).toHaveCount(0);
-  await expect(page.locator(".desktop-stage")).not.toHaveAttribute("inert", "");
-  await expect(opener).toBeFocused();
+  await expect(page.locator("#main-content")).not.toHaveAttribute("inert", "");
+  await expect(page.locator(".linux-canvas")).toBeFocused();
 });
 
 test("logs remain attached to the controller and typed reset confirmation can be cancelled without deletion", async ({ page }) => {
   await openRun(page);
-  const drawer = await openMenu(page);
-  const opener = page.getByRole("button", { name: "Open menu", exact: true });
-  await drawer.getByRole("button", { name: "Show logs", exact: true }).click();
+  const opener = rail(page).getByRole("button", { name: "Logs", exact: true });
+  await opener.click();
   const logs = activeDialog(page);
   await expect(logs).toHaveAccessibleName("Logs");
-  expect(await logs.evaluate((element) => element.matches(":modal"))).toBe(true);
+  expect(await logs.evaluate((element) => element.matches(":modal"))).toBe(false);
   await expect(logs.locator(".system-console")).toContainText("[test fixture] init started");
-  await logs.getByRole("button", { name: "Close", exact: true }).click();
+  await logs.getByRole("button", { name: "Close panel", exact: true }).click();
   await expect(activeDialog(page)).toHaveCount(0);
   await expect(page.locator(".system-console")).toBeAttached();
   await expect(opener).toBeFocused();
@@ -216,15 +226,14 @@ test("logs remain attached to the controller and typed reset confirmation can be
   await expect(confirm).toBeEnabled();
   await reset.getByRole("button", { name: "Keep my disk", exact: true }).click();
   await expect(activeDialog(page)).toHaveCount(0);
-  await expect(opener).toBeFocused();
+  await expect(rail(page).getByRole("button", { name: "Disk", exact: true })).toBeFocused();
   expect((await mockState(page)).resets).toBe(0);
   expect(await page.evaluate(() => sessionStorage.getItem("pocketosix:reset-disk"))).toBeNull();
 });
 
-test("first-use terminal opens real xterm UI wired to the mock console; reopen does not boot again", async ({ page }) => {
+test("terminal panel opens xterm UI wired to the mock console; reopen does not boot again", async ({ page }) => {
   await openRun(page);
-  await page.getByRole("complementary", { name: "Getting started", exact: true }).getByRole("button", { name: "Open terminal", exact: true }).click();
-  const terminal = page.getByRole("region", { name: "Guest terminal tty1", exact: true });
+  const terminal = await openTerminal(page);
   await expect(terminal.locator(".xterm-helper-textarea")).toBeAttached();
   const input = terminal.locator(".xterm-helper-textarea");
   await input.focus();
@@ -259,7 +268,8 @@ test("native drawer and reset dialog block synthetic xterm sends while browser c
   const drawer = await openMenu(page);
   await input.dispatchEvent("keydown", key);
   expect((await mockState(page)).consoleInput).toEqual([97]);
-  await drawer.getByRole("button", { name: "Reset disk", exact: true }).click();
+  await drawer.getByRole("button", { name: "Disk", exact: true }).click();
+  await activeDialog(page).getByRole("button", { name: "Reset disk", exact: true }).click();
   const reset = activeDialog(page);
   const confirmation = reset.getByLabel("Type pocketosix to confirm", { exact: true });
   await confirmation.focus();
@@ -281,7 +291,8 @@ test("guest networking is opt-in and login has a popup-blocking fallback", async
   });
   await openRun(page);
   expect(context.pages()).toHaveLength(1);
-  const drawer = await openMenu(page);
+  await rail(page).getByRole("button", { name: "Network", exact: true }).click();
+  const drawer = activeDialog(page);
   const network = drawer.locator("section").filter({ has: page.getByRole("heading", { name: "Network", exact: true }) });
   await expect(network.getByText("Off", { exact: true })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { __popupCalls: string[] }).__popupCalls)).toEqual([]);
@@ -340,7 +351,8 @@ test("an unexpected login domain is blocked instead of opening a redirect", asyn
   const unexpectedRequests: string[] = [];
   page.on("request", (request) => { if (request.url().includes("attacker.example")) unexpectedRequests.push(request.url()); });
   await openRun(page);
-  const drawer = await openMenu(page);
+  await rail(page).getByRole("button", { name: "Network", exact: true }).click();
+  const drawer = activeDialog(page);
   await page.evaluate(() => { window.open = () => null; });
   await drawer.getByRole("button", { name: "Connect Tailscale", exact: true }).click();
   const error = drawer.getByRole("alert");
@@ -408,8 +420,7 @@ test("terminal tile docks, resizes by pointer and keyboard, and expands without 
 
 test("native fullscreen targets HTML, preserves the drawer and exits without another boot", async ({ page }) => {
   await openRun(page);
-  await revealToolbar(page);
-  await page.getByRole("button", { name: "Fullscreen", exact: true }).click();
+  await rail(page).getByRole("button", { name: "Immersive", exact: true }).click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
   await expect(page.locator(".desktop-stage")).toBeVisible();
   const drawer = await openMenu(page);
@@ -418,15 +429,14 @@ test("native fullscreen targets HTML, preserves the drawer and exits without ano
   // Close explicitly here: native Escape may also exit fullscreen in Chromium.
   await drawer.getByRole("button", { name: "Close", exact: true }).click();
   await expect(activeDialog(page)).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Open menu", exact: true })).toBeFocused();
+  await expect(page.locator(".linux-canvas")).toBeFocused();
   await revealToolbar(page);
-  await page.getByRole("button", { name: "Exit fullscreen", exact: true }).click();
+  await page.getByRole("button", { name: "Exit immersive", exact: true }).click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
-  await revealToolbar(page);
-  await page.getByRole("button", { name: "Fullscreen", exact: true }).click();
+  await rail(page).getByRole("button", { name: "Immersive", exact: true }).click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
-  // The shell supports Escape too, including automation without native exit.
-  await page.keyboard.press("Escape");
+  // Browser-originated exit updates mode without a shell Escape handler.
+  await page.evaluate(() => document.exitFullscreen());
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === null)).toBe(true);
   expect((await mockState(page)).boots).toBe(1);
 });
@@ -434,7 +444,8 @@ test("native fullscreen targets HTML, preserves the drawer and exits without ano
 test("pointer lock is requested from the drawer by a user click and releases without another boot", async ({ page }) => {
   await openRun(page);
   expect(await page.evaluate(() => document.pointerLockElement)).toBeNull();
-  const drawer = await openMenu(page);
+  await rail(page).getByRole("button", { name: "Display", exact: true }).click();
+  const drawer = activeDialog(page);
   await drawer.getByRole("button", { name: "Lock pointer", exact: true }).click();
   await expect(activeDialog(page)).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => document.pointerLockElement === document.querySelector(".linux-canvas"))).toBe(true);
@@ -447,6 +458,8 @@ test("toolbar auto-hides, reveals near the top and stays available while focused
   // Advance the actual two-second UI timer; this does not simulate guest readiness.
   await page.clock.install();
   await openRun(page);
+  await rail(page).getByRole("button", { name: "Immersive", exact: true }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-mode", "immersive");
   await page.locator("#main-content").focus();
   await page.mouse.move(720, 480);
   await expect(page.locator("#main-content")).toBeFocused();
@@ -469,8 +482,8 @@ test("toolbar auto-hides, reveals near the top and stays available while focused
   await page.clock.fastForward(2500);
   await expect(toolbar(page)).toHaveCSS("opacity", "1");
   await expect(opener).toHaveAttribute("aria-expanded", "true");
-  await page.keyboard.press("Escape");
-  await expect(opener).toBeFocused();
+  await activeDialog(page).getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.locator(".linux-canvas")).toBeFocused();
   await page.locator("#main-content").focus();
   await page.mouse.move(720, 480);
   await page.clock.fastForward(2500);
@@ -493,14 +506,14 @@ for (const width of [390, 768, 1440]) {
       expect(bootRect!.x + bootRect!.width).toBeLessThanOrEqual(width);
       expect(bootRect!.y + bootRect!.height).toBeLessThanOrEqual(844);
       await boot(page);
-      await page.mouse.move(1, 32);
-      const controls = page.getByRole("navigation", { name: locale === "en" ? "Desktop controls" : "Управление рабочим столом", exact: true });
-      await expect(controls).toHaveCSS("opacity", "1");
-      const opener = controls.getByRole("button", { name: locale === "en" ? "Open menu" : "Открыть меню", exact: true });
-      await opener.focus();
-      await page.keyboard.press("Enter");
+      const controls = page.getByRole("navigation", { name: locale === "en" ? "Desktop rail" : "Панель рабочего стола", exact: true });
+      await controls.getByRole("button", { name: locale === "en" ? "Immersive" : "Режим погружения", exact: true }).click();
+      await expect(page.locator(".app-shell")).toHaveAttribute("data-mode", "immersive");
+      await revealToolbar(page);
+      const opener = page.getByRole("button", { name: locale === "en" ? "Keyboard shortcuts" : "Сочетания клавиш", exact: true });
+      await opener.click();
       const drawer = activeDialog(page);
-      await expect(drawer).toHaveAccessibleName(locale === "en" ? "Desktop menu" : "Меню рабочего стола");
+      await expect(drawer).toHaveAccessibleName(locale === "en" ? "Shortcuts" : "Сочетания клавиш");
       await expect(drawer).toBeVisible();
       expect(await drawer.evaluate((element) => element.matches(":modal"))).toBe(true);
       const rect = await drawer.boundingBox();
@@ -513,9 +526,9 @@ for (const width of [390, 768, 1440]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.keyboard.press("Tab");
       await expect.poll(() => drawer.evaluate((element) => element.contains(document.activeElement))).toBe(true);
-      await page.keyboard.press("Escape");
+      await drawer.getByRole("button", { name: locale === "en" ? "Close panel" : "Закрыть панель", exact: true }).click();
       await expect(activeDialog(page)).toHaveCount(0);
-      await expect(opener).toBeFocused();
+      await expect(page.locator(".linux-canvas")).toBeFocused();
       expect((await mockState(page)).boots).toBe(1);
     });
   }
@@ -524,20 +537,20 @@ for (const width of [390, 768, 1440]) {
 test("boot language dropdown uses the cookie and its selection persists into the running drawer", async ({ page, context }) => {
   await page.goto("/run");
   await expectPreflight(page);
-  const trigger = page.getByRole("button", { name: "Choose language", exact: true });
+   const trigger = page.getByTestId("boot-screen").getByRole("button", { name: "Choose language", exact: true });
   await trigger.click();
   await expect(page.getByRole("menuitemradio", { name: "English", exact: true })).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(page.getByRole("menuitemradio", { name: "Русский", exact: true })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
-  await expect(page.getByRole("button", { name: "Выбрать язык", exact: true })).toBeFocused();
+  await expect(page.getByTestId("boot-screen").getByRole("button", { name: "Выбрать язык", exact: true })).toBeFocused();
   expect((await context.cookies()).find((cookie) => cookie.name === "pocketosix-locale")?.value).toBe("ru");
   expect(await page.evaluate(() => "__pocketTest" in window)).toBe(false);
   await boot(page);
-  await page.mouse.move(1, 32);
-  const opener = page.getByRole("button", { name: "Открыть меню", exact: true });
-  await opener.click();
+  const opener = page.locator("[data-panel-trigger=disk]");
+  await opener.focus();
+  await page.keyboard.press("Control+Alt+Shift+m");
   const drawer = activeDialog(page);
   await drawer.getByRole("button", { name: "Выбрать язык", exact: true }).click();
   await expect(drawer.getByRole("menuitemradio", { name: "Русский", exact: true })).toBeFocused();
@@ -547,7 +560,7 @@ test("boot language dropdown uses the cookie and its selection persists into the
   await expect(drawer.getByRole("button", { name: "Choose language", exact: true })).toBeFocused();
   expect((await context.cookies()).find((cookie) => cookie.name === "pocketosix-locale")?.value).toBe("en");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("button", { name: "Open menu", exact: true })).toBeFocused();
+  await expect(opener).toBeFocused();
   await page.reload();
   await expectPreflight(page);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -567,12 +580,15 @@ test("landing launch opens only preflight and documentation navigation does not 
   await expect(page).toHaveURL(/\/run$/);
   await expectPreflight(page);
   expect(guestRequests).toEqual([]);
+  const popup = page.waitForEvent("popup");
   await page.getByRole("link", { name: "Docs", exact: true }).click();
-  await expect(page).toHaveURL(/\/docs$/);
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-  await page.getByRole("navigation", { name: "On this page", exact: true }).getByRole("link", { name: "Files and storage", exact: true }).click();
-  await expect(page).toHaveURL(/\/docs#storage$/);
-  await expect(page.locator("#storage")).toBeFocused();
-  expect(await page.evaluate(() => "__pocketTest" in window)).toBe(false);
+  const docs = await popup;
+  await expect(docs).toHaveURL(/\/docs$/);
+  await expect(docs.getByRole("heading", { level: 1 })).toBeVisible();
+  await docs.getByRole("navigation", { name: "On this page", exact: true }).getByRole("link", { name: "Files and storage", exact: true }).click();
+  await expect(docs).toHaveURL(/\/docs#storage$/);
+  await expect(docs.locator("#storage")).toBeFocused();
+  await expect(page).toHaveURL(/\/run$/);
+  expect(await docs.evaluate(() => "__pocketTest" in window)).toBe(false);
   expect(guestRequests).toEqual([]);
 });

@@ -1,0 +1,59 @@
+{
+  "date": "2026-11-22T13:09:40.570Z",
+  "source": "Current local production server; no mock SDK; real unchanged desktop poster.",
+  "fullPageReducedMotion": true,
+  "measurements": [
+    {
+      "locale": "en",
+      "elements": 316,
+      "mainElements": 200,
+      "width": 1440,
+      "documentWidth": 1440,
+      "documentHeight": 3403,
+      "animatedRegions": 0,
+      "ambientRegions": 2,
+      "videoMounted": false,
+      "errors": [],
+      "guestRequests": []
+    },
+    {
+      "locale": "ru",
+      "elements": 316,
+      "mainElements": 200,
+      "width": 1440,
+      "documentWidth": 1440,
+      "documentHeight": 3604,
+      "animatedRegions": 0,
+      "ambientRegions": 2,
+      "videoMounted": false,
+      "errors": [],
+      "guestRequests": []
+    },
+    {
+      "locale": "en",
+      "elements": 316,
+      "mainElements": 200,
+      "width": 390,
+      "documentWidth": 390,
+      "documentHeight": 3877,
+      "animatedRegions": 0,
+      "ambientRegions": 2,
+      "videoMounted": false,
+      "errors": [],
+      "guestRequests": []
+    },
+    {
+      "locale": "ru",
+      "elements": 316,
+      "mainElements": 200,
+      "width": 390,
+      "documentWidth": 390,
+      "documentHeight": 4053,
+      "animatedRegions": 0,
+      "ambientRegions": 2,
+      "videoMounted": false,
+      "errors": [],
+      "guestRequests": []
+    }
+  ]
+}

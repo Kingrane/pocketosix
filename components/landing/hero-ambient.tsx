@@ -1,31 +1,18 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { useId } from "react";
 import styles from "./hero-ambient.module.css";
 
-// Decorative CSS 3D planes: the same brand mark, no canvas / WebGL renderer.
-export function HeroAmbient() {
-  const ref = useRef<HTMLDivElement>(null);
+// Original brand mark and CSS 3D planes; the landing hook owns the active motion region.
+export function HeroAmbient({ variant = "hero" }: { variant?: "hero" | "section" }) {
   const id = useId();
   const mark = `${id}-mark`;
   const hex = `${id}-hex`;
   const cut = `${id}-cut`;
   const dither = `${id}-dither`;
+  const positions = variant === "hero" ? [styles.one, styles.two, styles.three, styles.four] : [styles.one, styles.two];
 
-  useEffect(() => {
-    const element = ref.current;
-    if (!element || typeof window.matchMedia !== "function" || typeof IntersectionObserver === "undefined") return;
-    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
-    let visible = false;
-    const update = () => { element.dataset.motion = visible && !reduced.matches && !document.hidden ? "running" : "paused"; };
-    const observer = new IntersectionObserver(([entry]) => { visible = entry.isIntersecting; update(); });
-    observer.observe(element);
-    reduced.addEventListener("change", update);
-    document.addEventListener("visibilitychange", update);
-    return () => { observer.disconnect(); reduced.removeEventListener("change", update); document.removeEventListener("visibilitychange", update); element.dataset.motion = "paused"; };
-  }, []);
-
-  return <div ref={ref} className={styles.ambient} aria-hidden="true" data-motion="paused" data-hero-ambient>
+  return <div className={`${styles.ambient}${variant === "section" ? ` ${styles.section}` : ""}`} aria-hidden="true" data-motion="paused" data-hero-ambient data-ambient-variant={variant}>
     <svg className={styles.definitions} xmlns="http://www.w3.org/2000/svg" focusable="false">
       <defs>
         <clipPath id={hex}><path d="M128 16 L225 72 V184 L128 240 L31 184 V72 Z" /></clipPath>
@@ -47,8 +34,8 @@ export function HeroAmbient() {
         </symbol>
       </defs>
     </svg>
-    {[styles.one, styles.two, styles.three, styles.four].map(position => <div className={`${styles.item} ${position}`} key={position}>
-      <div className={styles.float}>
+    {positions.map(position => <div className={`${styles.item} ${position}`} key={position}>
+      <div className={styles.float} data-ambient-float>
         {[-12, -8, -4, 0].map(depth => <svg key={depth} className={`${styles.face} ${depth === 0 ? styles.front : styles.edge}`} viewBox="0 0 256 256" focusable="false" style={{ transform: `translateZ(${depth}px)` }}>
           <use href={`#${mark}`} />
           {depth === 0 && <rect width="256" height="256" fill={`url(#${dither})`} clipPath={`url(#${hex})`} mask={`url(#${cut})`} opacity=".7" />}

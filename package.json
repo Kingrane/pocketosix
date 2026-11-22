@@ -9,6 +9,7 @@
   },
   "scripts": {
     "dev": "next dev --webpack",
+    "desktop": "node scripts/open-desktop.mjs",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",

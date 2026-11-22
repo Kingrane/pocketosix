@@ -10,6 +10,7 @@ export function useKmsInput(canvasRef: RefObject<HTMLCanvasElement | null>) {
     let pointerEvents = "";
     let tabIndex: string | null = null;
     let guestFocused = false;
+    const blocked = () => Boolean(canvasRef.current?.closest("[inert]") || document.querySelector("dialog:modal"));
 
     const restore = () => {
       if (!input?.isConnected) return;
@@ -27,7 +28,7 @@ export function useKmsInput(canvasRef: RefObject<HTMLCanvasElement | null>) {
     const bind = () => {
       const next = find();
       if (next === input) return;
-      const shouldRestore = guestFocused && document.activeElement === document.body && !document.querySelector("dialog[open]");
+      const shouldRestore = guestFocused && document.activeElement === document.body && !blocked();
       restore();
       input = next;
       if (!input) return;
@@ -39,7 +40,7 @@ export function useKmsInput(canvasRef: RefObject<HTMLCanvasElement | null>) {
       if (shouldRestore) input.focus({ preventScroll: true });
     };
     const focus = (event: FocusEvent) => {
-      if (event.target === canvasRef.current && !document.querySelector("dialog[open]")) {
+      if (event.target === canvasRef.current && !blocked()) {
         bind();
         input?.focus({ preventScroll: true });
         guestFocused = Boolean(input);

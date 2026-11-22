@@ -103,7 +103,7 @@ class WebVMController {
   };
 
   sendTerminal = (text: string) => {
-    if (!this.snapshot.consoleReady || document.querySelector("dialog[open]")) return;
+    if (!this.snapshot.consoleReady || document.querySelector("dialog:modal")) return;
     // Official WebVM custom-console contract. KMS keyboard/mouse input remains
     // entirely owned by the SDK; this function feeds only the tty1 console.
     for (let i = 0; i < text.length; i++) this.consoleInput?.(text.charCodeAt(i));

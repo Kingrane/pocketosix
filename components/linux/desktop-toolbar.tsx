@@ -1,40 +1,45 @@
 import { useEffect, useRef, useState } from "react";
-import { Expand, Keyboard, Minimize, MoreHorizontal } from "lucide-react";
+import { HardDrive, Keyboard, Monitor, MoreHorizontal, Network, ScrollText, Shrink, Terminal } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 import { useLanguage } from "@/components/ui/language-provider";
 import type { WebVMSnapshot } from "@/lib/webvm-state";
+import type { DialogName, PanelName } from "@/lib/desktop-ui";
 import styles from "./desktop-shell.module.css";
 
-export type DialogName = "menu" | "help" | "network" | "storage" | "logs" | "reset" | "reboot" | null;
-type Props = { snapshot: WebVMSnapshot; fullscreen: boolean; fullscreenAvailable: boolean; open: boolean; onFullscreen: () => void; onDialog: (name: DialogName) => void };
+export const PANEL_ICONS = { display: Monitor, terminal: Terminal, disk: HardDrive, network: Network, shortcuts: Keyboard, logs: ScrollText };
+export function desktopStatus(snapshot: WebVMSnapshot) {
+  return snapshot.phase === "ready" ? "run.running" : snapshot.phase === "error" ? "run.errorStatus" : snapshot.phase === "idle" || snapshot.phase === "stopped" ? "run.stoppedStatus" : "run.starting";
+}
 
-export function DesktopToolbar({ snapshot, fullscreen, fullscreenAvailable, open, onFullscreen, onDialog }: Props) {
+export function DesktopToolbar({ snapshot, open, onExitImmersive, onGuestFocus, onPanel, onDialog }: {
+  snapshot: WebVMSnapshot; open: boolean; onExitImmersive: () => void; onGuestFocus: () => void; onPanel: (name: PanelName) => void; onDialog: (name: DialogName) => void;
+}) {
   const { t } = useLanguage();
   const ref = useRef<HTMLElement>(null);
   const [visible, setVisible] = useState(true);
-  const [focused, setFocused] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const ready = snapshot.phase === "ready";
+  const [focused, setFocused] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!ready) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
     const arm = () => {
-      clearTimeout(timer);
-      if (!open && !focused && !hovered) timer = setTimeout(() => setVisible(false), 2000);
+      if (timer.current) clearTimeout(timer.current);
+      if (!open && !hovered && !focused) timer.current = setTimeout(() => setVisible(false), 2000);
     };
-    const move = (event: PointerEvent) => {
-      if (event.clientY <= 64) { setVisible(true); arm(); }
-    };
+    const reveal = (event: PointerEvent) => { if (event.clientY <= 24) { setVisible(true); arm(); } };
     arm();
-    window.addEventListener("pointermove", move, { passive: true });
-    return () => { clearTimeout(timer); window.removeEventListener("pointermove", move); };
-  }, [ready, open, focused, hovered]);
-  if (!ready) return null;
-  return <nav ref={ref} className={`${styles.toolbar} ${visible || open || focused || hovered ? "" : styles.toolbarHidden}`} aria-label={t("run.controls")}
-    onPointerEnter={() => { setHovered(true); setVisible(true); }} onPointerLeave={() => setHovered(false)}
-    onFocus={() => { setFocused(true); setVisible(true); }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}>
-    <span className={styles.toolbarStatus} role="status"><span className={styles.statusDot} aria-hidden="true" />{t("run.running")}</span>
-    <button className="icon-button" disabled={!fullscreenAvailable} title={!fullscreenAvailable ? t("run.fullscreenUnavailable") : t(fullscreen ? "run.exitFullscreen" : "run.fullscreen")} aria-label={t(fullscreen ? "run.exitFullscreen" : "run.fullscreen")} onClick={onFullscreen}>{fullscreen ? <Minimize size={17} aria-hidden="true" /> : <Expand size={17} aria-hidden="true" />}</button>
-    <button className="icon-button" aria-label={t("run.shortcutsTitle")} title={t("run.shortcutsTitle")} onClick={() => onDialog("help")}><Keyboard size={17} aria-hidden="true" /></button>
-    <button className="icon-button" aria-label={t("run.openMenu")} title={t("run.openMenu")} aria-haspopup="dialog" aria-expanded={open} onClick={() => onDialog("menu")}><MoreHorizontal size={19} aria-hidden="true" /></button>
-  </nav>;
+    window.addEventListener("pointermove", reveal);
+    return () => { if (timer.current) clearTimeout(timer.current); window.removeEventListener("pointermove", reveal); };
+  }, [open, hovered, focused, visible]);
+  return <>
+    <button type="button" className={styles.notch} aria-label={t("run.showControls")} onPointerEnter={() => setVisible(true)} onClick={() => { setVisible(true); onGuestFocus(); }}><span /></button>
+    <nav ref={ref} data-desktop-toolbar className={`${styles.toolbar} ${!visible && !open ? styles.toolbarHidden : ""}`} aria-label={t("run.toolbar")} inert={!visible && !open}
+      onPointerEnter={() => { setHovered(true); setVisible(true); }} onPointerLeave={() => setHovered(false)}
+      onFocus={() => { setFocused(true); setVisible(true); }} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}>
+      <button className="icon-button" aria-label={t("run.exitHome")} title={t("run.exitHome")} onClick={() => onDialog("leave")}><Logo variant="mark" /></button>
+      <span className={styles.toolbarStatus}><span className={styles.statusDot} data-phase={snapshot.phase} aria-hidden="true" /><span>{t(desktopStatus(snapshot))}</span></span>
+      <button className="icon-button" aria-label={t("run.exitImmersive")} title={t("run.exitImmersive")} onClick={onExitImmersive}><Shrink size={18} aria-hidden="true" /></button>
+      <button className="icon-button" aria-label={t("run.shortcutsTitle")} title={t("run.shortcutsTitle")} onClick={() => onPanel("shortcuts")}><Keyboard size={18} aria-hidden="true" /></button>
+      <button className="icon-button" aria-label={t("run.openMenu")} title={t("run.openMenu")} aria-haspopup="dialog" aria-expanded={open} onClick={() => onDialog("menu")}><MoreHorizontal size={18} aria-hidden="true" /></button>
+    </nav>
+  </>;
 }

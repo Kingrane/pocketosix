@@ -132,26 +132,53 @@ async function expectCommittedMarker(page: Page, marker: string) {
 }
 
 async function openMenu(page: Page) {
-  await page.mouse.move((page.viewportSize()?.width ?? 1440) / 2, 10);
-  await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  if (await page.locator("[data-mode=immersive]").count()) {
+    await page.mouse.move((page.viewportSize()?.width ?? 1440) / 2, 10);
+    await page.getByRole("button", { name: "Open menu", exact: true }).click();
+  } else {
+    await page.locator("[data-panel-trigger=disk]").focus();
+    await page.keyboard.press("Control+Alt+Shift+m");
+  }
   return page.getByRole("dialog", { name: "Desktop menu", exact: true });
 }
 
 async function showToolbar(page: Page) {
-  await page.mouse.move((page.viewportSize()?.width ?? 1440) / 2, 10);
-  await expect(page.getByRole("navigation", { name: "Desktop controls", exact: true })).toHaveCSS("opacity", "1");
+  await expect(page.getByRole("navigation", { name: "Desktop rail", exact: true })).toBeVisible();
 }
 
 async function openReset(page: Page) {
   const menu = await openMenu(page);
-  await menu.getByRole("button", { name: "Reset disk", exact: true }).click();
+  await menu.getByRole("button", { name: "Disk", exact: true }).click();
+  await page.getByRole("dialog", { name: "Disk", exact: true }).getByRole("button", { name: "Reset disk", exact: true }).click();
+}
+
+async function captureShell(page: Page, width: number) {
+  await page.setViewportSize({ width, height: width === 390 ? 844 : 960 });
+  await page.screenshot({ path: test.info().outputPath(`docked-${width}.png`) });
+  await page.locator("[data-panel-trigger=disk]").click();
+  const disk = page.getByRole("dialog", { name: "Disk", exact: true });
+  await expect(disk).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath(`disk-${width}.png`) });
+  await disk.getByRole("button", { name: "Close panel", exact: true }).click();
+  await page.getByRole("button", { name: "Immersive", exact: true }).click();
+  await expect(page.locator(".app-shell")).toHaveAttribute("data-mode", "immersive");
+  await page.mouse.move(width / 2, 10);
+  await expect(page.locator("[data-desktop-toolbar]")).toHaveCSS("opacity", "1");
+  await page.screenshot({ path: test.info().outputPath(`immersive-${width}.png`) });
+  await page.getByRole("button", { name: "Exit immersive", exact: true }).click();
+  await page.getByRole("button", { name: "Exit to home", exact: true }).click();
+  const leave = page.getByRole("dialog", { name: "Leave desktop?", exact: true });
+  await expect(leave).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath(`leave-${width}.png`) });
+  await leave.getByRole("button", { name: "Stay", exact: true }).click();
 }
 
 async function loginTty1(page: Page) {
   // tty1 is independent of Xorg: never gate this smoke test on GUI readiness.
   await page.goto("/run");
   await page.getByRole("button", { name: "> boot", exact: true }).click();
-  const opener = page.getByRole("button", { name: "Open terminal", exact: true });
+  await page.locator("[data-panel-trigger=terminal]").click();
+  const opener = page.getByRole("dialog", { name: "Terminal", exact: true }).getByRole("button", { name: "Open terminal", exact: true });
   await expect(opener).toBeEnabled({ timeout: 180000 });
   await opener.click();
   const terminal = page.getByRole("region", { name: "Guest terminal tty1" });
@@ -226,6 +253,9 @@ test("real WebDevice exposes its asset directory and reads the wallpaper through
   });
   expect(result.status).toBe(0);
   expect(await guestStatus(page, "pidof i3 >/dev/null")).toBe(0);
+  if (process.env.POCKETOSIX_VM_CAPTURE_UI === "1") {
+    for (const width of [1440, 390]) await captureShell(page, width);
+  }
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 960 });
     await showToolbar(page);
@@ -257,11 +287,24 @@ test("real Alpine/i3 accepts Polybar clicks and KMS keys and preserves a file ac
   // echo cannot masquerade as successful guest command execution.
   await terminalCommand(page, "printf 'pocketosix-%s\\n' 'input-ready' > /tmp/pocketosix-input.txt");
   await expectGuestMarker(page, "/tmp/pocketosix-input.txt", "pocketosix-input-ready");
+  await page.keyboard.press("Control+Alt+Shift+m", { delay: 100 });
+  const guestMenu = page.getByRole("dialog", { name: "Desktop menu", exact: true });
+  await expect(guestMenu).toBeVisible();
+  await guestMenu.getByRole("button", { name: "Close", exact: true }).click();
+  await terminalCommand(page, "printf 'pocketosix-%s\\n' 'menu-return-ready' > /tmp/pocketosix-menu-return.txt", false);
+  await expectGuestMarker(page, "/tmp/pocketosix-menu-return.txt", "pocketosix-menu-return-ready");
+  await page.locator("[data-panel-trigger=display]").click();
+  await page.locator(".linux-canvas").focus();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mobilePanel = page.getByRole("dialog", { name: "Display", exact: true });
+  await expect(mobilePanel.getByRole("button", { name: "Close panel", exact: true })).toBeFocused();
+  await expect(page.locator("body > textarea[data-pocketosix-kms-input]")).not.toBeFocused();
+  await mobilePanel.getByRole("button", { name: "Close panel", exact: true }).click();
   await page.setViewportSize({ width: 1280, height: 880 });
   await terminalCommand(page, "printf 'pocketosix-%s\\n' 'resize-ready' > /tmp/pocketosix-resize.txt", false);
   await expectGuestMarker(page, "/tmp/pocketosix-resize.txt", "pocketosix-resize-ready");
   await page.mouse.move(600, 10);
-  await page.getByRole("button", { name: "Fullscreen", exact: true }).click();
+  await page.getByRole("button", { name: "Immersive", exact: true }).click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement === document.documentElement)).toBe(true);
   await terminalCommand(page, "printf 'pocketosix-%s\\n' 'fullscreen-ready' > /tmp/pocketosix-fullscreen.txt", false);
   await expectGuestMarker(page, "/tmp/pocketosix-fullscreen.txt", "pocketosix-fullscreen-ready");

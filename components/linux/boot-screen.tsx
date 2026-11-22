@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { Logo } from "@/components/ui/logo";
 import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { useLanguage } from "@/components/ui/language-provider";
@@ -12,7 +12,7 @@ import styles from "./desktop-shell.module.css";
 const phases = ["checking", "engine", "disk", "starting"];
 const errorKeys: Record<string, string> = { isolation: "isolation", unsupported: "unsupported", "disk-locked": "locked", disk: "disk", runtime: "runtime" };
 
-export function BootScreen({ snapshot, onBoot, onLogs, onTerminal }: { snapshot: WebVMSnapshot; onBoot: () => void; onLogs: () => void; onTerminal: () => void }) {
+export function BootScreen({ snapshot, onBoot, onLogs, onTerminal, onLeave }: { snapshot: WebVMSnapshot; onBoot: () => void; onLogs: () => void; onTerminal: () => void; onLeave: () => void }) {
   const { t } = useLanguage();
   const [failures, setFailures] = useState<string[] | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -41,7 +41,7 @@ export function BootScreen({ snapshot, onBoot, onLogs, onTerminal }: { snapshot:
   const failed = Boolean(failures?.length);
   const errorKey = errorKeys[snapshot.error?.code ?? ""] ?? "runtime";
   return <div className={styles.bootOverlay} data-testid="boot-screen">
-    <nav className={styles.bootNav} aria-label={t("run.navigation")}><Link href="/" aria-label={t("common.home")}><Logo /></Link><div><Link href="/docs">{t("common.docs")}</Link><LanguageSwitcher /></div></nav>
+    <nav className={styles.bootNav} aria-label={t("run.navigation")}><button className={styles.brandButton} aria-label={t("run.exitHome")} onClick={onLeave}><Logo /></button><div><Link href="/docs" target="_blank" rel="noopener noreferrer">{t("common.docs")}</Link><LanguageSwitcher /></div></nav>
     <div className={styles.bootContent}>
       <div className={styles.bootMark}><Logo variant="mark" /></div>
       <h1>{snapshot.error ? t(`run.errors.${errorKey}.title`) : failed && idle ? t("run.preflightTitle") : idle ? t("run.openDesktop") : t("run.starting")}</h1>
@@ -54,7 +54,7 @@ export function BootScreen({ snapshot, onBoot, onLogs, onTerminal }: { snapshot:
         <button className={`button button-primary ${styles.bootButton}`} onClick={onBoot} disabled={failures === null || failed}>{t("run.boot")}</button>
         <small>{t(failures === null ? "run.readingCapabilities" : failed ? "run.fixCapabilities" : "run.bootDownload")}</small>
       </> : <>
-        <ol className={styles.stepper} aria-label={t("run.bootStages")}>{phases.map((phase, index) => <li key={phase} className={phase === snapshot.phase ? styles.currentStep : index < phases.indexOf(snapshot.phase) ? styles.completedStep : ""} aria-current={phase === snapshot.phase ? "step" : undefined}><span aria-hidden="true" />{t(`run.steps.${phase}`)}</li>)}</ol>
+        <ol className={styles.stepper} aria-label={t("run.bootStages")}>{phases.map((phase, index) => <li key={phase} className={phase === snapshot.phase ? styles.currentStep : index < phases.indexOf(snapshot.phase) ? styles.completedStep : styles.pendingStep} aria-current={phase === snapshot.phase ? "step" : undefined}>{index < phases.indexOf(snapshot.phase) ? <Check size={14} aria-hidden="true" /> : <span aria-hidden="true" />}{t(`run.steps.${phase}`)}</li>)}</ol>
         <p className={styles.elapsed}><span>{t("run.elapsed")}</span> <span>{elapsed}{t("run.seconds")}</span></p>
         {snapshot.bootSlow && <p className={styles.slowHint} role="status">{t("run.bootSlow")}</p>}
         <div className={styles.bootActions}><button className={styles.textButton} onClick={onLogs}>{t("run.showLogs")}</button>{snapshot.consoleReady && <button className={styles.textButton} onClick={onTerminal}>{t("run.openTerminal")}</button>}</div>

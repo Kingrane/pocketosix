@@ -1,0 +1,70 @@
+{
+  "en": {
+    "landing": {
+      "hero": {
+        "videoAlt": "A recording of the real Alpine / i3 desktop."
+      },
+      "stats": {
+        "label": "Compute and image facts",
+        "computeServers": "Compute servers",
+        "coldBoot": "Cold boot",
+        "baseImageSize": "Base image",
+        "localCompute": "Local compute",
+        "notMeasured": "Not measured"
+      },
+      "features": {
+        "capturePending": "Capture pending",
+        "userspace": {
+          "imageAlt": "A shell running in the real Alpine / i3 desktop.",
+          "placeholder": "Reserved for a real Alpine shell capture."
+        },
+        "disk": {
+          "imageAlt": "A saved file reopened in Alpine after a browser reload.",
+          "placeholder": "Reserved for a real saved-file capture."
+        },
+        "compute": {
+          "imageAlt": "The real Alpine desktop alongside the browser task manager showing local CPU activity.",
+          "placeholder": "Reserved for a real local-compute capture."
+        }
+      },
+      "launch": {
+        "mobileTitle": "A desktop is recommended.",
+        "opening": "Opening desktop…"
+      }
+    }
+  },
+  "ru": {
+    "landing": {
+      "hero": {
+        "videoAlt": "Запись настоящего рабочего стола Alpine / i3."
+      },
+      "stats": {
+        "label": "Вычисления и образ системы",
+        "computeServers": "Серверов для вычислений",
+        "coldBoot": "Холодный запуск",
+        "baseImageSize": "Базовый образ",
+        "localCompute": "Локальные вычисления",
+        "notMeasured": "Не измерено"
+      },
+      "features": {
+        "capturePending": "Снимок готовится",
+        "userspace": {
+          "imageAlt": "Shell в настоящем рабочем столе Alpine / i3.",
+          "placeholder": "Место для настоящего снимка shell в Alpine."
+        },
+        "disk": {
+          "imageAlt": "Сохранённый файл, открытый в Alpine после перезагрузки браузера.",
+          "placeholder": "Место для настоящего снимка сохранённого файла."
+        },
+        "compute": {
+          "imageAlt": "Настоящий рабочий стол Alpine рядом с диспетчером задач браузера, показывающим локальную загрузку CPU.",
+          "placeholder": "Место для настоящего снимка локальных вычислений."
+        }
+      },
+      "launch": {
+        "mobileTitle": "Рекомендуем компьютер.",
+        "opening": "Открываем рабочий стол…"
+      }
+    }
+  }
+}

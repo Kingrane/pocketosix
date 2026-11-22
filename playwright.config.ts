@@ -14,7 +14,7 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   projects: [
-    { name: "chromium", testMatch: ["shell.spec.ts", "landing.spec.ts", "kms-input.spec.ts"], use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 960 } } },
+    { name: "chromium", testMatch: ["shell.spec.ts", "landing.spec.ts", "kms-input.spec.ts", "desktop-ui.spec.ts"], use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 960 } } },
     {
       name: "real-vm", testMatch: "real-vm.spec.ts", timeout: 720000,
       use: {

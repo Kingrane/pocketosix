@@ -1,0 +1,120 @@
+{
+  "recordedAt": "2026-11-22T13:30:23.848Z",
+  "platform": "win32",
+  "node": "v24.14.0",
+  "origin": "http://localhost:3000",
+  "sdk": "1.4.0",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "originalPosterSHA256": "d440c398adced23e736382bda6c1afbf1752f116a51fb18720cb6b6152e999df",
+  "note": "390px is desktop Chromium responsive viewport, not a real mobile device. No claim of second xterm shell, floating configuration or video playback. Wallpaper redistribution rights confirmed by owner; not MIT.",
+  "files": [
+    {
+      "path": "artifacts/redesign3/screenshots/boot-1440.png",
+      "sha256": "ded66ff803849984f48b402fab11e002fa2ed3dbaaa7e2858329e5010359df2f",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/boot-390.png",
+      "sha256": "9c02a1ba4080082de1a4075a8b6d97fc330242eb159524704322b386dc3ab4be",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/disk-1440.png",
+      "sha256": "fadf52813a3cf5c8019ae3d6454c7e6af3f12b5bb65db23281ec7960f0159e6d",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/disk-390.png",
+      "sha256": "7b3ffd29153336653aa538b8bed991b4217796ab178c2b9eee22b4cb232743f7",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/docked-1440.png",
+      "sha256": "92ab2a96988ecb964ff16eef3a7e074117a105ab20b2ca400bac22a5bb788c91",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/docked-390.png",
+      "sha256": "e18ed0982e80ad02916f8be61633bce00ec4d02fb1e44f59f628a3748db9a82c",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/immersive-1440.png",
+      "sha256": "5ccf8a25a856d1ab8d3ccd34871e94e261788eb450443e2c6cee7fd0042f5304",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/immersive-390.png",
+      "sha256": "0ed9caddeb223e63ae42afb2e23c92eae1ab47dcf002ae6183114b16ad8b5ac3",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/landing-full-1440-ru.png",
+      "sha256": "11920db9ad23d28b382e7bda3398de22d13a6639d80c0e41a3e4383615e68de4",
+      "source": "Production landing with unchanged genuine REDESIGN2 poster; no mock SDK; no guest boot.",
+      "reducedMotion": true
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/landing-full-1440.png",
+      "sha256": "431ce3c8aefaf376b675e1144520d41adb1974c90fceed63233669e7a5e0e778",
+      "source": "Production landing with unchanged genuine REDESIGN2 poster; no mock SDK; no guest boot.",
+      "reducedMotion": true
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/landing-full-390-ru.png",
+      "sha256": "59fa2cc091b8644c638600c3c47232e628c7c669885f88358becba576f60a080",
+      "source": "Production landing with unchanged genuine REDESIGN2 poster; no mock SDK; no guest boot.",
+      "reducedMotion": true
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/landing-full-390.png",
+      "sha256": "3d17102a13b67d202d09e74a446c04f3d0c3b9e67def2ef3d9b14aebcfd5e1b4",
+      "source": "Production landing with unchanged genuine REDESIGN2 poster; no mock SDK; no guest boot.",
+      "reducedMotion": true
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/landing-hero-1440-ru.png",
+      "sha256": "e300431d6772deaba8b4a1ef190e499d6d138e171cf0f7b7e0412c73456e16a6",
+      "source": "Production landing with unchanged genuine REDESIGN2 poster; no mock SDK; no guest boot.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/landing-hero-1440.png",
+      "sha256": "06dbcc487403d228c94325d527a7711724e58cdd7101d84bbfdfdf17bde45e31",
+      "source": "Production landing with unchanged genuine REDESIGN2 poster; no mock SDK; no guest boot.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/landing-hero-390-ru.png",
+      "sha256": "f56b06a0873f287183c398214a82d3542b7b1a2fa57d9b707c6b36ba8cfb808a",
+      "source": "Production landing with unchanged genuine REDESIGN2 poster; no mock SDK; no guest boot.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/landing-hero-390.png",
+      "sha256": "22694df43aa875c4a79e5f7cc024f37749ec228c7ca15954ccc93c8a8eb0699e",
+      "source": "Production landing with unchanged genuine REDESIGN2 poster; no mock SDK; no guest boot.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/leave-1440.png",
+      "sha256": "aad2ea23fb80d28b7e8cbfb3dacdefbe0ac0cff193d42d6a9e8d3340e3bb0f57",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    },
+    {
+      "path": "artifacts/redesign3/screenshots/leave-390.png",
+      "sha256": "78c4aa20b3f5b91677b27e63163cfcd90cebd23c7bd156ad1d3ee6a5475061e9",
+      "source": "Real CheerpX WebDevice / i3 test; full suite 4/4, before final input-fixes; fresh Playwright profile.",
+      "reducedMotion": false
+    }
+  ]
+}

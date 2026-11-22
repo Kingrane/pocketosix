@@ -1,0 +1,78 @@
+{
+  "en": {
+    "run": {
+      "learnMore": "Learn more",
+      "pointerLockHint": "Press Escape to release.",
+      "terminalDescription": "Separate guest tty1 console.",
+      "diskDescription": "Writes are asynchronous; manual Save is unavailable.",
+      "storageInfo": "About storage and writes",
+      "diskWriteDetails": "Only files, packages and settings committed to browser storage survive reload. Guest writes may finish before that asynchronous commit. Reloading or leaving can lose recent changes; RAM, running processes and unsaved app documents are not preserved. Storage belongs to this browser profile and origin. Do not keep your only copy of important files here.",
+      "save": "Save",
+      "saveUnavailable": "Unavailable: CheerpX 1.4.0 has no verified public durable-flush API.",
+      "protectStorage": "Request storage protection",
+      "storageProtected": "Protection granted",
+      "restartDescription": "Reload ends running processes and unsaved app work. Only files already committed to browser storage remain; pending asynchronous writes can be lost. Save your documents in the guest before restarting.",
+      "networkDescription": "Optional. Internet access requires an external exit node.",
+      "networkInfo": "About guest networking",
+      "networkDetails": "Tailscale connects only when you choose to. Internet access needs your own account, an external exit node and a suitable tailnet policy. A Tailscale IP or detected exit node does not prove internet access; verify it inside the guest. The desktop starts without guest networking.",
+      "loginPending": "Continue in the Tailscale sign-in window.",
+      "modifier": "i3 modifier · Mod1 =",
+      "guestShortcuts": "Guest i3 shortcuts",
+      "shortcuts": {
+        "workspaces": { "keys": "Alt + 1…9 / 0", "description": "Switch to workspace 1–10" }
+      },
+      "browserShortcuts": {
+        "title": "Browser controls",
+        "menu": "Open the desktop menu, including from the guest",
+        "palette": "Command palette — only when browser UI has focus",
+        "paletteKeys": "Ctrl + K"
+      },
+      "inputInfo": "About keyboard focus",
+      "copyLogs": "Copy",
+      "logsCopied": "Runtime output copied.",
+      "leaveTitle": "Leave desktop?",
+      "leaveDescription": "Files already committed to this browser remain. Leaving ends running processes and unsaved app work.",
+      "leaveWriteWarning": "Writes are asynchronous: pending changes may be lost. There is no verified Save or durable-flush action. Save open documents in the guest before leaving.",
+      "stay": "Stay",
+      "leave": "Leave"
+    }
+  },
+  "ru": {
+    "run": {
+      "learnMore": "Подробнее",
+      "pointerLockHint": "Escape освобождает указатель.",
+      "terminalDescription": "Отдельная гостевая консоль tty1.",
+      "diskDescription": "Запись асинхронная; ручное сохранение недоступно.",
+      "storageInfo": "О хранении и записи",
+      "diskWriteDetails": "После перезагрузки остаются только файлы, пакеты и настройки, фактически записанные в хранилище браузера. Гостевая запись может завершиться раньше этой асинхронной записи. Перезагрузка или выход могут потерять последние изменения; RAM, процессы и несохранённые документы приложений не сохраняются. Хранилище привязано к этому профилю браузера и origin. Не храните здесь единственную копию важных файлов.",
+      "save": "Сохранить",
+      "saveUnavailable": "Недоступно: у CheerpX 1.4.0 не подтверждён публичный API гарантированного завершения записи (durable flush).",
+      "protectStorage": "Запросить защиту хранилища",
+      "storageProtected": "Защита разрешена",
+      "restartDescription": "Перезагрузка завершит процессы и несохранённую работу приложений. Останутся только файлы, фактически записанные в хранилище браузера; незавершённая асинхронная запись может потеряться. Перед перезапуском сохраните документы в госте.",
+      "networkDescription": "Необязательно. Для интернета нужен внешний exit node.",
+      "networkInfo": "О сети гостя",
+      "networkDetails": "Tailscale подключается только по вашему действию. Для интернета нужны ваш аккаунт, внешний exit node и подходящая политика tailnet. IP Tailscale или обнаруженный exit node не подтверждают доступ к интернету — проверьте его внутри гостя. Рабочий стол запускается без сети гостя.",
+      "loginPending": "Продолжите вход в окне Tailscale.",
+      "modifier": "Модификатор i3 · Mod1 =",
+      "guestShortcuts": "Сочетания гостевого i3",
+      "shortcuts": {
+        "workspaces": { "keys": "Alt + 1…9 / 0", "description": "Перейти в рабочее пространство 1–10" }
+      },
+      "browserShortcuts": {
+        "title": "Управление браузером",
+        "menu": "Открыть меню рабочего стола, в том числе из гостя",
+        "palette": "Палитра команд — только при фокусе в интерфейсе браузера",
+        "paletteKeys": "Ctrl + K"
+      },
+      "inputInfo": "О фокусе клавиатуры",
+      "copyLogs": "Копировать",
+      "logsCopied": "Вывод runtime скопирован.",
+      "leaveTitle": "Покинуть рабочий стол?",
+      "leaveDescription": "Файлы, уже записанные в этот браузер, останутся. Выход завершит процессы и несохранённую работу приложений.",
+      "leaveWriteWarning": "Запись асинхронная: незавершённые изменения могут потеряться. Подтверждённого действия Save или durable flush нет. Перед выходом сохраните открытые документы в госте.",
+      "stay": "Остаться",
+      "leave": "Выйти"
+    }
+  }
+}

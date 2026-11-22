@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { Home, Search, X } from "lucide-react";
 import { useLinuxDesktop } from "@/hooks/use-linux-desktop";
 import { useKmsInput } from "@/hooks/use-kms-input";
 import { useLanguage } from "@/components/ui/language-provider";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { DESKTOP_PANELS, MENU_CHORD, type DesktopMode, type DialogName, type PanelName } from "@/lib/desktop-ui";
 import { BootScreen } from "./boot-screen";
-import { DesktopToolbar, type DialogName } from "./desktop-toolbar";
-import { DesktopDialog, DesktopLogs } from "./desktop-dialog";
+import { DesktopToolbar, PANEL_ICONS } from "./desktop-toolbar";
+import { DesktopRail } from "./desktop-rail";
+import { DesktopConfirm, DesktopModal } from "./desktop-dialog";
+import { DesktopPanel } from "./desktop-panel";
 import { GuestTerminal } from "./guest-terminal";
 import styles from "./desktop-shell.module.css";
 
@@ -15,22 +19,56 @@ export function LinuxDesktop() {
   const { snapshot, canvasRef, consoleRef, actions } = useLinuxDesktop();
   useKmsInput(canvasRef);
   const { t } = useLanguage();
-  const rootRef = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<DesktopMode>("docked");
+  const [panel, setPanel] = useState<PanelName | null>(null);
   const [dialog, setDialog] = useState<DialogName>(null);
+  const [query, setQuery] = useState("");
   const [compact, setCompact] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [dock, setDock] = useState<"bottom" | "right">("bottom");
   const [terminalSize, setTerminalSize] = useState(280);
   const [terminalExpanded, setTerminalExpanded] = useState(false);
   const [scale, setScale] = useState<"fit" | "native">("fit");
-  const [fullscreen, setFullscreen] = useState(false);
   const [capabilities, setCapabilities] = useState({ fullscreen: false, pointerLock: false });
-  const [helpDismissed, setHelpDismissed] = useState(false);
+  const [immersiveHint, setImmersiveHint] = useState(false);
   const [uiError, setUiError] = useState<string | null>(null);
   const [operationDismissed, setOperationDismissed] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDialogElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
   const focusFrame = useRef<number | null>(null);
   const drag = useRef<{ position: number; size: number } | null>(null);
+
+  const cancelFocus = useCallback(() => { if (focusFrame.current !== null) { cancelAnimationFrame(focusFrame.current); focusFrame.current = null; } }, []);
+  const rememberFocus = useCallback(() => {
+    cancelFocus();
+    returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }, [cancelFocus]);
+  const restoreFocus = useCallback(() => {
+    cancelFocus();
+    const closingFocus = document.activeElement;
+    const origin = returnFocus.current;
+    const target = mode === "immersive" ? canvasRef.current : origin;
+    focusFrame.current = requestAnimationFrame(() => {
+      focusFrame.current = null;
+      // A later canvas / tty1 interaction wins over a deferred UI focus return.
+      if (!document.querySelector("dialog:modal") && target?.isConnected &&
+        (document.activeElement === document.body || document.activeElement === closingFocus || document.activeElement === origin)) target.focus({ preventScroll: true });
+    });
+  }, [cancelFocus, canvasRef, mode]);
+  const closePanel = useCallback(() => { setPanel(null); restoreFocus(); }, [restoreFocus]);
+  const closeDialog = useCallback(() => { setDialog(null); restoreFocus(); }, [restoreFocus]);
+  const openPanel = useCallback((name: PanelName) => {
+    if (panel === name && !dialog) { closePanel(); return; }
+    if (!dialog) rememberFocus();
+    setDialog(null);
+    setPanel(name);
+  }, [panel, dialog, closePanel, rememberFocus]);
+  const openDialog = useCallback((name: DialogName) => {
+    if (!dialog && !panel) rememberFocus();
+    setPanel(null);
+    setQuery("");
+    setDialog(name);
+  }, [dialog, panel, rememberFocus]);
 
   useEffect(() => {
     const media = matchMedia("(max-width: 720px)");
@@ -38,58 +76,110 @@ export function LinuxDesktop() {
     const frame = requestAnimationFrame(() => {
       updateCompact();
       setCapabilities({ fullscreen: Boolean(document.fullscreenEnabled && document.documentElement.requestFullscreen), pointerLock: typeof canvasRef.current?.requestPointerLock === "function" });
-      try { setHelpDismissed(Boolean(localStorage.getItem("pocketosix:desktop-help"))); } catch { /* Optional UI preference. */ }
     });
-    const updateFullscreen = () => setFullscreen(document.fullscreenElement === document.documentElement);
-    const exitOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && document.fullscreenElement === document.documentElement && !document.querySelector("dialog[open]")) {
-        void document.exitFullscreen().catch(() => setUiError("run.fullscreenDenied"));
-      }
+    const updateFullscreen = () => {
+      const immersive = document.fullscreenElement === document.documentElement;
+      setMode(immersive ? "immersive" : "docked");
+      setPanel(null);
+      setDialog((current) => current === "leave" || current === "reset" || current === "reboot" ? current : null);
+      if (immersive) {
+        try {
+          if (!sessionStorage.getItem("pocketosix:immersive-hint")) { setImmersiveHint(true); sessionStorage.setItem("pocketosix:immersive-hint", "seen"); }
+        } catch { setImmersiveHint(true); }
+      } else setImmersiveHint(false);
     };
     document.addEventListener("fullscreenchange", updateFullscreen);
-    document.addEventListener("keydown", exitOnEscape);
     media.addEventListener("change", updateCompact);
-    return () => { cancelAnimationFrame(frame); if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current); document.removeEventListener("fullscreenchange", updateFullscreen); document.removeEventListener("keydown", exitOnEscape); media.removeEventListener("change", updateCompact); };
-  }, [canvasRef]);
+    return () => { cancelAnimationFrame(frame); cancelFocus(); document.removeEventListener("fullscreenchange", updateFullscreen); media.removeEventListener("change", updateCompact); };
+  }, [cancelFocus, canvasRef]);
 
-  async function toggleFullscreen() {
+  useEffect(() => {
+    const node = panelRef.current;
+    if (!node || !panel) return;
+    if (mode === "immersive") node.showModal(); else node.show();
+    if (compact) node.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+    return () => { if (node.open) node.close(); };
+  }, [panel, mode, compact]);
+
+  useEffect(() => {
+    if (!immersiveHint) return;
+    const timer = setTimeout(() => setImmersiveHint(false), 6000);
+    return () => clearTimeout(timer);
+  }, [immersiveHint]);
+
+  useEffect(() => {
+    let pendingMenu = false;
+    let menuKeyHeld = false;
+    let menuFrame: number | undefined;
+    const keyboard = (event: KeyboardEvent) => {
+      const menuKey = event.code === "KeyM" || (!event.code && event.key.toLowerCase() === "m");
+      const menuChord = event.type === "keydown" && event.ctrlKey && event.altKey && event.shiftKey && !event.metaKey && menuKey;
+      const target = event.target instanceof Element ? event.target : null;
+      const guest = target === canvasRef.current || target?.matches("[data-pocketosix-kms-input]") || Boolean(target?.closest(".xterm"));
+      const palette = !guest && event.ctrlKey && !event.altKey && !event.shiftKey && !event.metaKey && (event.code === "KeyK" || (!event.code && event.key.toLowerCase() === "k"));
+      if (pendingMenu) {
+        if (menuKey) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          menuKeyHeld = event.type === "keydown";
+        }
+        if (event.type === "keyup" && !menuKeyHeld && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+          // Real modifier keyups must reach the SDK textarea before a modal takes focus.
+          pendingMenu = false;
+          menuFrame = requestAnimationFrame(() => openDialog("menu"));
+        }
+        return;
+      }
+      if ((!menuChord && !palette) || (dialog && dialog !== "menu" && dialog !== "palette")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.type === "keydown" && !event.repeat) {
+        if (menuChord) { pendingMenu = true; menuKeyHeld = true; }
+        else openDialog("palette");
+      }
+    };
+    document.addEventListener("keydown", keyboard, true);
+    document.addEventListener("keyup", keyboard, true);
+    return () => { if (menuFrame !== undefined) cancelAnimationFrame(menuFrame); document.removeEventListener("keydown", keyboard, true); document.removeEventListener("keyup", keyboard, true); };
+  }, [canvasRef, dialog, openDialog]);
+
+  async function toggleImmersive() {
     try {
-      if (document.fullscreenElement) await document.exitFullscreen();
+      if (document.fullscreenElement === document.documentElement) await document.exitFullscreen();
       else await document.documentElement.requestFullscreen();
+      // Fullscreen the document, not the stage: CheerpX's input lives under body.
+      cancelFocus();
+      focusFrame.current = requestAnimationFrame(() => { focusFrame.current = null; if (!document.querySelector("dialog:modal")) canvasRef.current?.focus({ preventScroll: true }); });
     } catch { setUiError("run.fullscreenDenied"); }
   }
-  function openDialog(name: DialogName) {
-    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
-    if (!dialog) returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setDialog(name);
-  }
-  function closeDialog() {
-    const target = returnFocus.current;
-    const closingFocus = document.activeElement;
-    setDialog(null);
-    if (focusFrame.current !== null) cancelAnimationFrame(focusFrame.current);
-    focusFrame.current = requestAnimationFrame(() => {
-      focusFrame.current = null;
-      // A subsequent canvas / tty1 interaction owns focus now. Never override
-      // it with a delayed return to the control that opened the dialog.
-      if (!document.querySelector("dialog[open]") && (document.activeElement === document.body || document.activeElement === closingFocus) && target?.isConnected) target.focus({ preventScroll: true });
-    });
-  }
   async function pointerLock() {
-    closeDialog();
+    closePanel();
     try { await canvasRef.current?.requestPointerLock(); } catch { setUiError("run.pointerLockDenied"); }
+  }
+  function openTerminal() { setTerminalOpen(true); closePanel(); }
+  function leaveDesktop() {
+    // End the document and its writer; client-side navigation would retain the runtime.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign("/");
   }
   const effectiveDock = compact ? "bottom" : dock;
   const operationError = snapshot.operationError && snapshot.operationError !== operationDismissed;
   const ready = snapshot.phase === "ready";
-  return <div className={`app-shell ${styles.shell}`} ref={rootRef} data-vm-phase={snapshot.phase}>
+  const menuPanels = DESKTOP_PANELS.filter((name) => t(`run.panels.${name}`).toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+  return <div className={`app-shell ${styles.shell} ${mode === "immersive" ? styles.immersive : ""} ${panel ? styles.panelOpen : ""}`} data-mode={mode} data-vm-phase={snapshot.phase} onPointerDownCapture={cancelFocus} style={{ "--panel-width": panel ? "320px" : "0px" } as CSSProperties}>
     <a href="#main-content" className="skip-link">{t("run.skipDesktop")}</a>
-    <DesktopToolbar snapshot={snapshot} fullscreen={fullscreen} fullscreenAvailable={capabilities.fullscreen} open={Boolean(dialog)} onFullscreen={() => void toggleFullscreen()} onDialog={openDialog} />
-    <main id="main-content" tabIndex={-1} className={`${styles.workarea} ${terminalOpen ? effectiveDock === "bottom" ? styles.dockBottom : styles.dockRight : ""} ${terminalExpanded && terminalOpen ? styles.terminalExpanded : ""}`} style={{ "--terminal-size": `${terminalSize}px` } as CSSProperties}>
+    <DesktopRail snapshot={snapshot} panel={panel} fullscreenAvailable={capabilities.fullscreen} onPanel={openPanel} onLeave={() => openDialog("leave")} onImmersive={() => void toggleImmersive()} />
+    <dialog id="desktop-panel" ref={panelRef} className={styles.panelContainer} aria-label={t(panel ? `run.panels.${panel}` : "run.panel")} onCancel={(event) => { event.preventDefault(); closePanel(); }}
+      onKeyDown={(event) => { event.stopPropagation(); if (event.key === "Escape") { event.preventDefault(); closePanel(); } }} onKeyUp={(event) => event.stopPropagation()}
+      onClick={(event) => { if (event.target === event.currentTarget && mode === "immersive") { const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closePanel(); } }}>
+      <button className={`icon-button ${styles.panelClose}`} aria-label={t("run.closePanel")} onClick={closePanel}><X size={16} aria-hidden="true" /></button>
+      <DesktopPanel name={panel} snapshot={snapshot} scale={scale} pointerLockAvailable={capabilities.pointerLock} terminalOpen={terminalOpen} consoleRef={consoleRef} onScale={setScale} onPointerLock={() => void pointerLock()} onTerminal={openTerminal} onDialog={openDialog} onConnect={actions.connectNetwork} onProtect={actions.protectStorage} />
+    </dialog>
+    <main id="main-content" tabIndex={-1} className={`${styles.workarea} ${terminalOpen ? effectiveDock === "bottom" ? styles.dockBottom : styles.dockRight : ""} ${terminalExpanded && terminalOpen ? styles.terminalExpanded : ""}`} style={{ "--terminal-size": `${terminalSize}px` } as CSSProperties} inert={Boolean(dialog) || (Boolean(panel) && (mode === "immersive" || compact))}>
       <section className={styles.desktopTile} aria-label={t("run.desktopTitle")}>
-        <div className={`desktop-stage ${styles.stage} ${scale === "native" ? styles.nativeScale : ""}`} inert={Boolean(dialog)}>
+        <div className={`desktop-stage ${styles.stage} ${scale === "native" ? styles.nativeScale : ""}`}>
           <canvas ref={canvasRef} className={`linux-canvas ${styles.canvas} ${ready ? "is-live" : ""}`} tabIndex={0} aria-label={t("run.canvasLabel")} onContextMenu={(event) => event.preventDefault()}>{t("run.canvasFallback")}</canvas>
-          <BootScreen snapshot={snapshot} onBoot={actions.start} onLogs={() => openDialog("logs")} onTerminal={() => setTerminalOpen(true)} />
+          <BootScreen snapshot={snapshot} onBoot={actions.start} onLogs={() => openPanel("logs")} onTerminal={() => setTerminalOpen(true)} onLeave={() => openDialog("leave")} />
         </div>
       </section>
       {terminalOpen && <>
@@ -101,9 +191,17 @@ export function LinuxDesktop() {
         <GuestTerminal dock={effectiveDock} compact={compact} expanded={terminalExpanded} onDock={() => setDock((value) => value === "bottom" ? "right" : "bottom")} onExpand={() => setTerminalExpanded((value) => !value)} onClose={() => setTerminalOpen(false)} />
       </>}
     </main>
-    {ready && !helpDismissed && !terminalOpen && <aside className={styles.firstUse} aria-label={t("run.gettingStarted")}><div><strong>{t("run.gettingStarted")}</strong><p>{t("run.firstUse")} <kbd>{t("run.shortcuts.terminal.keys")}</kbd> {t("run.firstUseTerminal")} <kbd>{t("run.shortcuts.launcher.keys")}</kbd> {t("run.firstUseLauncher")}</p><button className={styles.textButton} onClick={() => setTerminalOpen(true)}>{t("run.openTerminal")}</button></div><button className="icon-button" aria-label={t("run.dismissHelp")} onClick={() => { setHelpDismissed(true); try { localStorage.setItem("pocketosix:desktop-help", "seen"); } catch { /* Optional UI preference. */ } }}><X size={15} aria-hidden="true" /></button></aside>}
+    {mode === "immersive" && <DesktopToolbar snapshot={snapshot} open={Boolean(dialog || panel)} onExitImmersive={() => void toggleImmersive()} onGuestFocus={() => canvasRef.current?.focus({ preventScroll: true })} onPanel={openPanel} onDialog={openDialog} />}
+    {immersiveHint && !dialog && !panel && <div className={styles.immersiveHint} role="status">{t("run.immersiveHint")}</div>}
     {(uiError || operationError) && !dialog && <div className={styles.notification} role="alert"><div><span>{t(uiError ?? "run.operationError")}</span>{operationError && <details className={styles.technical}><summary>{t("run.technicalDetails")}</summary><pre>{snapshot.operationError}</pre></details>}</div><button className="icon-button" aria-label={t("run.dismissMessage")} onClick={() => { setUiError(null); setOperationDismissed(snapshot.operationError); actions.clearOperationError(); }}><X size={16} aria-hidden="true" /></button></div>}
-    <DesktopLogs open={dialog === "logs"} consoleRef={consoleRef} onClose={closeDialog} />
-    {dialog && dialog !== "logs" && <DesktopDialog key={dialog} name={dialog} snapshot={snapshot} scale={scale} onScale={setScale} pointerLockAvailable={capabilities.pointerLock} onPointerLock={() => void pointerLock()} terminalOpen={terminalOpen} onTerminal={() => { setTerminalOpen(true); closeDialog(); }} onClose={closeDialog} onDialog={openDialog} onConnect={actions.connectNetwork} onProtect={actions.protectStorage} onReset={actions.resetDisk} />}
+    {(dialog === "menu" || dialog === "palette") && <DesktopModal key={dialog} title={t(dialog === "palette" ? "run.commandPalette" : "run.menuTitle")} onClose={closeDialog}>
+      {dialog === "palette" && <label className={styles.commandSearch}><Search size={16} aria-hidden="true" /><input autoFocus data-autofocus value={query} onChange={(event) => setQuery(event.target.value)} aria-label={t("run.searchActions")} placeholder={t("run.searchActions")} /></label>}
+      <div className={styles.menuActions}>
+        <button onClick={() => openDialog("leave")}><Home size={18} strokeWidth={1.5} aria-hidden="true" />{t("run.backHome")}</button>
+        {menuPanels.map((name) => { const Icon = PANEL_ICONS[name]; return <button key={name} onClick={() => openPanel(name)}><Icon size={18} strokeWidth={1.5} aria-hidden="true" />{t(`run.panels.${name}`)}</button>; })}
+      </div>
+      <div className={styles.menuFooter}><span><kbd>{MENU_CHORD}</kbd></span><LanguageSwitcher /></div>
+    </DesktopModal>}
+    {(dialog === "reset" || dialog === "reboot" || dialog === "leave") && <DesktopConfirm name={dialog} snapshot={snapshot} onClose={closeDialog} onReset={actions.resetDisk} onLeave={leaveDesktop} />}
   </div>;
 }

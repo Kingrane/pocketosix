@@ -1,0 +1,61 @@
+{
+  "reference": "c62e39d11c919f024c73a6a6a15d32b4b1ae7995",
+  "results": [
+    {
+      "path": "lib/webvm.ts",
+      "before": "7e5760fba65b1756bac64fc941c44b5498dd060047ed19f2b543f0d3438a66b1",
+      "current": "eef191fae0d46154bdf5c46ba8d0ccdfcdbdb914ea24dd34920931c5f0365eb5",
+      "unchanged": false
+    },
+    {
+      "path": "lib/webvm-config.ts",
+      "before": "089f425edc59364846c33da7db429f3cdd2dd5ccd4edfc32935fc40e88ab9233",
+      "current": "089f425edc59364846c33da7db429f3cdd2dd5ccd4edfc32935fc40e88ab9233",
+      "unchanged": true
+    },
+    {
+      "path": "lib/webvm-state.ts",
+      "before": "9e78929874c3e18e703d3e93b32d7358bcd4276801c9c1e754a5a1ade2eb2674",
+      "current": "9e78929874c3e18e703d3e93b32d7358bcd4276801c9c1e754a5a1ade2eb2674",
+      "unchanged": true
+    },
+    {
+      "path": "hooks/use-linux-desktop.ts",
+      "before": "d5ed4a3ea6b6b9058fae10aaeb2ff5f75d8e73d9d131853ca340cf33e2f41b93",
+      "current": "d5ed4a3ea6b6b9058fae10aaeb2ff5f75d8e73d9d131853ca340cf33e2f41b93",
+      "unchanged": true
+    },
+    {
+      "path": "types/cheerpx.d.ts",
+      "before": "cf4b4c6245efb985dca06e0d080d0f199e704cd20330ea613f6886effd492083",
+      "current": "cf4b4c6245efb985dca06e0d080d0f199e704cd20330ea613f6886effd492083",
+      "unchanged": true
+    },
+    {
+      "path": "next.config.ts",
+      "before": "afacd4f48051e84026377fe347d2193432fa099b3633251ed8e909d90a568caf",
+      "current": "afacd4f48051e84026377fe347d2193432fa099b3633251ed8e909d90a568caf",
+      "unchanged": true
+    },
+    {
+      "path": "vercel.json",
+      "before": "56442a64ac9b1d35f5f11458930a3803579f45713daa7e83c5aab2aabb37508e",
+      "current": "56442a64ac9b1d35f5f11458930a3803579f45713daa7e83c5aab2aabb37508e",
+      "unchanged": true
+    },
+    {
+      "path": "public/hero-desktop.png",
+      "before": "d440c398adced23e736382bda6c1afbf1752f116a51fb18720cb6b6152e999df",
+      "current": "d440c398adced23e736382bda6c1afbf1752f116a51fb18720cb6b6152e999df",
+      "unchanged": true
+    },
+    {
+      "path": "public/assets/alpine_bg.png",
+      "before": "ecffeb2c4d42ebd08d7e94ca44ea91ec7991eca72534fa468c1fab04603642da",
+      "current": "ecffeb2c4d42ebd08d7e94ca44ea91ec7991eca72534fa468c1fab04603642da",
+      "unchanged": true
+    }
+  ],
+  "runtimeChange": "Only sendTerminal UI modal gate: dialog[open] -> dialog:modal. Boot, disk and network orchestration unchanged.",
+  "runtimeDiff": "diff --git a/lib/webvm.ts b/lib/webvm.ts\nindex 45620a3..77920e7 100644\n--- a/lib/webvm.ts\n+++ b/lib/webvm.ts\n@@ -103,7 +103,7 @@ class WebVMController {\n   };\n \n   sendTerminal = (text: string) => {\n-    if (!this.snapshot.consoleReady || document.querySelector(\"dialog[open]\")) return;\n+    if (!this.snapshot.consoleReady || document.querySelector(\"dialog:modal\")) return;\n     // Official WebVM custom-console contract. KMS keyboard/mouse input remains\n     // entirely owned by the SDK; this function feeds only the tty1 console.\n     for (let i = 0; i < text.length; i++) this.consoleInput?.(text.charCodeAt(i));\n"
+}

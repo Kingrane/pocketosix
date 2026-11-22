@@ -1,0 +1,12 @@
+
+> pocketosix@0.0.1 test:vm
+> playwright test --project=real-vm --grep real Alpine/i3 accepts
+
+
+Running 1 test using 1 worker
+
+  ✓  1 [real-vm] › tests\browser\real-vm.spec.ts:269:1 › real Alpine/i3 accepts Polybar clicks and KMS keys and preserves a file across reload (5.5m)
+
+  Slow test file: [real-vm] › tests\browser\real-vm.spec.ts (5.5m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  1 passed (5.5m)

@@ -1,0 +1,15 @@
+
+> pocketosix@0.0.1 test:vm
+> playwright test --project=real-vm
+
+
+Running 4 tests using 1 worker
+
+  ✓  1 [real-vm] › tests\browser\real-vm.spec.ts:202:1 › real tty1 accepts login and executes a shell command through the docked xterm (48.6s)
+  ✓  2 [real-vm] › tests\browser\real-vm.spec.ts:214:1 › real tty1 committed disk write survives reload and a confirmed reset clears the test overlay (3.6m)
+  ✓  3 [real-vm] › tests\browser\real-vm.spec.ts:243:1 › real WebDevice exposes its asset directory and reads the wallpaper through guest syscalls (2.1m)
+  ✓  4 [real-vm] › tests\browser\real-vm.spec.ts:269:1 › real Alpine/i3 accepts Polybar clicks and KMS keys and preserves a file across reload (5.3m)
+
+  Slow test file: [real-vm] › tests\browser\real-vm.spec.ts (11.8m)
+  Consider running tests from slow files in parallel. See: https://playwright.dev/docs/test-parallel
+  4 passed (11.8m)

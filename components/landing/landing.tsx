@@ -1,31 +1,31 @@
 "use client";
 
 import Image from "next/image";
-import { Cpu, HardDrive, ImageIcon, Terminal } from "lucide-react";
 import { SiteHeader } from "@/components/ui/site-header";
 import { SiteFooter } from "@/components/ui/site-footer";
 import { LaunchLink } from "@/components/ui/launch-link";
 import { useLanguage } from "@/components/ui/language-provider";
 import { GITHUB_URL } from "@/lib/site-links";
 import { useLandingReveal } from "@/hooks/use-landing-reveal";
+import { LANDING_FEATURES, LANDING_STATS, type LandingFeatureMedia } from "@/lib/landing-config";
+import { HeroMedia } from "./hero-media";
 import { HeroAmbient } from "./hero-ambient";
 import styles from "./landing.module.css";
 import motion from "./landing-motion.module.css";
 
-const features = [
-  { key: "userspace", Icon: Terminal },
-  { key: "disk", Icon: HardDrive },
-  { key: "compute", Icon: Cpu },
-] as const;
 const architecture = ["browser", "cheerpx", "alpine", "desktop", "canvas"] as const;
 const notes = ["compatibility", "storage", "network"] as const;
 
-export function Landing({ hasDesktopMedia = false }: { hasDesktopMedia?: boolean }) {
+export function Landing({ hasDesktopMedia = false, hasDesktopVideo = false, featureMedia = {} }: {
+  hasDesktopMedia?: boolean;
+  hasDesktopVideo?: boolean;
+  featureMedia?: LandingFeatureMedia;
+}) {
   const { t } = useLanguage();
   const landingRef = useLandingReveal();
 
   return (
-    <div ref={landingRef} className={`${styles.landing} ${motion.motion}`}>
+    <div ref={landingRef} className={`${styles.landing} ${motion.motion}`} data-landing>
       <SiteHeader />
       <main id="main-content" className={styles.main} tabIndex={-1}>
         <section className={styles.hero} aria-labelledby="hero-heading">
@@ -40,45 +40,44 @@ export function Landing({ hasDesktopMedia = false }: { hasDesktopMedia?: boolean
             <p className={styles.caption}>{t("landing.hero.caption")}</p>
           </div>
 
-          <div className={styles.mediaWrap}>
-            <div className={`${styles.mediaFrame}${hasDesktopMedia ? ` ${styles.hasMedia}` : ""}`}>
-              <div className={styles.windowBar} aria-hidden="true"><span /><span /><span /></div>
-              <div className={styles.desktopMedia}>
-                {hasDesktopMedia ? (
-                  <Image
-                    src="/hero-desktop.png"
-                    alt={t("landing.hero.imageAlt")}
-                    width={1920}
-                    height={1200}
-                    sizes="(max-width: 1168px) calc(100vw - 48px), 1120px"
-                    loading="lazy"
-                    className={styles.desktopImage}
-                  />
+          <HeroMedia hasImage={hasDesktopMedia} hasVideo={hasDesktopVideo} />
+        </section>
+
+        <dl className={styles.stats} aria-label={t("landing.stats.label")}>
+          {Object.entries(LANDING_STATS).map(([key, value]) => (
+            <div key={key}>
+              <dt>{t(`landing.stats.${key}`)}</dt>
+              <dd>{value === null ? <><span aria-hidden="true">—</span><span className="sr-only">{t("landing.stats.notMeasured")}</span></> : value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <section className={styles.features} aria-label={t("landing.features.label")} data-reveal>
+          {LANDING_FEATURES.map(({ key, image }) => (
+            <article className={styles.feature} key={key}>
+              <div className={styles.featureMedia}>
+                {featureMedia[key] ? (
+                  <Image src={image} alt={t(`landing.features.${key}.imageAlt`)} fill
+                    sizes="(max-width: 640px) calc(100vw - 40px), (max-width: 1168px) calc((100vw - 96px) / 3), 357px" loading="lazy" />
                 ) : (
-                  <div className={styles.mediaPending}>
-                    <ImageIcon size={24} strokeWidth={1.25} aria-hidden="true" />
-                    <p className={styles.mediaPendingTitle}>{t("landing.hero.mediaPendingTitle")}</p>
-                    <p>{t("landing.hero.mediaPendingDescription")}</p>
+                  <div className={styles.featurePlaceholder}>
+                    <span className={styles.placeholderLabel}>{t("landing.features.capturePending")}</span>
+                    <span>{t(`landing.features.${key}.placeholder`)}</span>
                   </div>
                 )}
               </div>
-            </div>
-          </div>
-        </section>
-
-        <section className={styles.features} aria-label={t("landing.features.label")}>
-          {features.map(({ key, Icon }) => (
-            <article className={styles.feature} key={key} data-reveal>
-              <Icon size={24} strokeWidth={1.5} aria-hidden="true" />
-              <h2>{t(`landing.features.${key}.title`)}</h2>
-              <p>{t(`landing.features.${key}.description`)}</p>
+              <div className={styles.featureCopy}>
+                <h2>{t(`landing.features.${key}.title`)}</h2>
+                <p>{t(`landing.features.${key}.description`)}</p>
+              </div>
             </article>
           ))}
         </section>
 
-        <section className={styles.architecture} aria-labelledby="architecture-heading" data-surface="architecture">
-          <h2 id="architecture-heading" data-reveal>{t("landing.architecture.title")}</h2>
-          <ol className={styles.nodes} data-reveal>
+        <section className={styles.architecture} aria-labelledby="architecture-heading" data-surface="architecture" data-reveal>
+          <HeroAmbient variant="section" />
+          <h2 id="architecture-heading">{t("landing.architecture.title")}</h2>
+          <ol className={styles.nodes}>
             {architecture.map((key) => (
               <li key={key}>
                 <span>{t(`landing.architecture.nodes.${key}`)}</span>
@@ -86,14 +85,14 @@ export function Landing({ hasDesktopMedia = false }: { hasDesktopMedia?: boolean
               </li>
             ))}
           </ol>
-          <p data-reveal>{t("landing.architecture.description")}</p>
+          <p>{t("landing.architecture.description")}</p>
         </section>
 
-        <section className={styles.goodToKnow} aria-labelledby="notes-heading" data-surface="notes">
-          <h2 id="notes-heading" data-reveal>{t("landing.notes.title")}</h2>
+        <section className={styles.goodToKnow} aria-labelledby="notes-heading" data-surface="notes" data-reveal>
+          <h2 id="notes-heading">{t("landing.notes.title")}</h2>
           <dl className={styles.noteList}>
             {notes.map((key) => (
-              <div className={styles.note} key={key} data-reveal>
+              <div className={styles.note} key={key}>
                 <dt>{t(`landing.notes.${key}.title`)}</dt>
                 <dd>{t(`landing.notes.${key}.description`)}</dd>
               </div>
